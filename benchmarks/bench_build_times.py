@@ -1,8 +1,13 @@
 # Build performance benchmark harness for CppLab IDE.
 
+import sys
 import time
 import csv
 from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from src.cpplab.core.project_config import ProjectConfig
 from src.cpplab.core.builder import build_project
 from src.cpplab.core.toolchains import get_toolchains
