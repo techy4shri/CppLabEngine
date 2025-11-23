@@ -41,29 +41,33 @@ class MainWindow(QMainWindow):
     
     def _setup_widgets(self):
         self.project_explorer = ProjectExplorer()
-        left_panel_layout = self.leftPanel.layout()
-        left_panel_layout.addWidget(self.project_explorer)
-        self.leftPanel.findChild(QWidget, "projectExplorer").deleteLater()
+        project_dock_content = self.projectDockWidget.findChild(QWidget, "projectDockContent")
+        project_tree_view = project_dock_content.findChild(QWidget, "projectTreeView")
+        project_tree_view.deleteLater()
+        project_dock_content.layout().addWidget(self.project_explorer)
         
         self.output_panel = OutputPanel()
-        self.outputPanel.deleteLater()
-        self.rightSplitter.addWidget(self.output_panel)
+        output_dock_content = self.outputDockWidget.findChild(QWidget, "outputDockContent")
+        build_output_text = output_dock_content.findChild(QWidget, "buildOutputTextEdit")
+        build_output_text.deleteLater()
+        output_dock_content.layout().addWidget(self.output_panel)
     
     def _connect_signals(self):
-        self.actionNewProject.triggered.connect(self._on_new_project)
-        self.actionOpenProject.triggered.connect(self._on_open_project)
-        self.actionSave.triggered.connect(self._on_save)
-        self.actionSaveAll.triggered.connect(self._on_save_all)
-        self.actionExit.triggered.connect(self.close)
+        self.newProjectAction.triggered.connect(self._on_new_project)
+        self.openProjectAction.triggered.connect(self._on_open_project)
+        self.saveFileAction.triggered.connect(self._on_save)
+        self.saveAllAction.triggered.connect(self._on_save_all)
+        self.closeFileAction.triggered.connect(self._on_close_file)
+        self.exitAction.triggered.connect(self.close)
         
-        self.actionBuild.triggered.connect(self._on_build)
-        self.actionRun.triggered.connect(self._on_run)
-        self.actionBuildAndRun.triggered.connect(self._on_build_and_run)
+        self.buildProjectAction.triggered.connect(self._on_build)
+        self.runProjectAction.triggered.connect(self._on_run)
+        self.buildAndRunAction.triggered.connect(self._on_build_and_run)
         
-        self.actionAbout.triggered.connect(self._on_about)
+        self.aboutAction.triggered.connect(self._on_about)
         
         self.project_explorer.file_double_clicked.connect(self._open_file_in_editor)
-        self.editorTabs.tabCloseRequested.connect(self._close_editor_tab)
+        self.editorTabWidget.tabCloseRequested.connect(self._close_editor_tab)
     
     def _on_new_project(self):
         from .dialogs import NewProjectDialog
@@ -98,20 +102,20 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"CppLab IDE - {project.name}")
     
     def _open_file_in_editor(self, file_path: str):
-        for i in range(self.editorTabs.count()):
-            editor = self.editorTabs.widget(i)
+        for i in range(self.editorTabWidget.count()):
+            editor = self.editorTabWidget.widget(i)
             if isinstance(editor, CodeEditor) and editor.file_path == file_path:
-                self.editorTabs.setCurrentIndex(i)
+                self.editorTabWidget.setCurrentIndex(i)
                 return
         
         editor = CodeEditor()
         editor.load_file(file_path)
         tab_name = Path(file_path).name
-        self.editorTabs.addTab(editor, tab_name)
-        self.editorTabs.setCurrentWidget(editor)
+        self.editorTabWidget.addTab(editor, tab_name)
+        self.editorTabWidget.setCurrentWidget(editor)
     
     def _close_editor_tab(self, index: int):
-        editor = self.editorTabs.widget(index)
+        editor = self.editorTabWidget.widget(index)
         if isinstance(editor, CodeEditor) and editor.is_modified:
             reply = QMessageBox.question(
                 self, "Unsaved Changes",
@@ -122,23 +126,28 @@ class MainWindow(QMainWindow):
                 editor.save_file()
             elif reply == QMessageBox.StandardButton.Cancel:
                 return
-        self.editorTabs.removeTab(index)
+        self.editorTabWidget.removeTab(index)
+    
+    def _on_close_file(self):
+        current_index = self.editorTabWidget.currentIndex()
+        if current_index >= 0:
+            self._close_editor_tab(current_index)
     
     def _on_save(self):
-        current_editor = self.editorTabs.currentWidget()
+        current_editor = self.editorTabWidget.currentWidget()
         if isinstance(current_editor, CodeEditor):
             current_editor.save_file()
-            index = self.editorTabs.currentIndex()
+            index = self.editorTabWidget.currentIndex()
             tab_name = Path(current_editor.file_path).name
-            self.editorTabs.setTabText(index, tab_name)
+            self.editorTabWidget.setTabText(index, tab_name)
     
     def _on_save_all(self):
-        for i in range(self.editorTabs.count()):
-            editor = self.editorTabs.widget(i)
+        for i in range(self.editorTabWidget.count()):
+            editor = self.editorTabWidget.widget(i)
             if isinstance(editor, CodeEditor) and editor.is_modified:
                 editor.save_file()
                 tab_name = Path(editor.file_path).name
-                self.editorTabs.setTabText(i, tab_name)
+                self.editorTabWidget.setTabText(i, tab_name)
     
     def _on_build(self):
         if not self.current_project:

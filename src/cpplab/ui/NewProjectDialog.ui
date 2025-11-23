@@ -101,6 +101,21 @@
           <string>C11</string>
          </property>
         </item>
+        <item>
+         <property name="text">
+          <string>C14</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>C17</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>C20</string>
+         </property>
+        </item>
        </widget>
       </item>
      </layout>
