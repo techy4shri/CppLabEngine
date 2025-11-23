@@ -1,15 +1,31 @@
 # CppLab IDE
 
-A dedicated C/C++ IDE for college students with support for old and new libraries and modules alike like graphics.h and OpenMP.
+A dedicated offline C/C++ IDE for college students with bundled MinGW compilers, graphics.h support, and OpenMP.
+
+## Downloads
+
+**Latest Release: v0.1.0**
+
+📦 [Download CppLabIDE-v0.1.0-win64.zip](https://github.com/techy4shri/CppLabEngine/releases)
+
+**Quick Start:**
+1. Download and extract the zip file anywhere on your computer
+2. Run `CppLabIDE.exe` - no installation needed
+3. Start coding with C/C++ immediately
+
+**Requirements:** Windows 10/11 (64-bit)
 
 ## Features
 
-- **Modern IDE Interface**: Clean, intuitive PyQt6-based GUI with syntax highlighting
-- **Graphics Support**: Full support for legacy graphics.h library (32-bit)
-- **OpenMP Support**: Multi-threading support for modern C++ applications (64-bit)
-- **Portable Toolchains**: Bundled MinGW compilers (32-bit and 64-bit)
-- **Project Management**: Simple project configuration with JSON-based settings
-- **Offline First**: Designed for offline use in college labs
+- **Console and Graphics Projects**: Support for standard C/C++ and legacy graphics.h
+- **Multiple C/C++ Standards**: C11, C++11/14/17/20 (toolchain-dependent)
+- **Graphics Support**: Full graphics.h via 32-bit MinGW with WinBGIm library
+- **OpenMP Support**: Parallel computing with 64-bit MinGW
+- **Standalone File Mode**: Compile single .c/.cpp files without creating projects
+- **Auto-Detection**: Automatically detects graphics.h and OpenMP pragmas in standalone files
+- **Bundled Toolchains**: Includes MinGW 32-bit and 64-bit compilers
+- **Portable**: No installation required, runs from any folder
+- **Offline First**: Designed for use in college labs without internet
 
 ## Project Types
 
@@ -89,13 +105,32 @@ CppLabEngine/
    launch.bat
    ```
 
-### Production Packaging
+### Building from Source
 
-Use PyInstaller to create a standalone executable:
+To create a standalone Windows distribution:
 
 ```bash
-pyinstaller --name CppLabIDE --windowed --add-data "src/cpplab/ui;ui" --add-data "compilers;compilers" src/cpplab/main.py
+# Setup environment
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+
+# Run build script
+python tools/build_release.py
 ```
+
+This will:
+1. Clean previous builds
+2. Run PyInstaller to create executable
+3. Copy compilers/, examples/, and licenses/ into distribution
+4. Create `dist/CppLabIDE-v0.1.0-win64.zip`
+
+**Build Requirements:**
+- Python 3.13+
+- PyInstaller
+- compilers/ directory with mingw32 and mingw64 toolchains (not in git)
+
+See [BUILDING.md](BUILDING.md) for detailed build instructions.
 
 ## Usage
 
@@ -135,6 +170,17 @@ Each project contains a `.cpplab.json` file:
 }
 ```
 
+## Known Limitations
+
+This is an early release focused on core functionality:
+
+- **Windows Only**: Currently targets Windows 10/11 (64-bit)
+- **No Debugger**: Integrated debugging not yet implemented (use GDB externally)
+- **Build Performance**: Builds may be slow on some systems
+  - Recommendation: Add CppLabIDE folder to antivirus exclusions for faster builds
+- **Graphics + OpenMP**: Cannot use both features in same project (graphics requires 32-bit, OpenMP better on 64-bit)
+- **Limited Standards**: C++20/23 support depends on MinGW version bundled
+
 ## Code Style
 
 The codebase follows these conventions:
@@ -145,20 +191,26 @@ The codebase follows these conventions:
 
 ## Future Enhancements
 
-- [ ] Offline documentation browser
-- [ ] Code templates library
 - [ ] Integrated debugger (GDB)
-- [ ] Project templates
-- [ ] Settings dialog for project configuration
+- [ ] Linux and macOS support
 - [ ] Auto-completion and IntelliSense
+- [ ] Code templates library
+- [ ] Project templates
+- [ ] Settings dialog for toolchain configuration
 - [ ] Git integration
+- [ ] Enhanced documentation browser
 
 ## Requirements
 
+**For End Users (Prebuilt):**
+- Windows 10/11 (64-bit)
+- No additional software needed
+
+**For Development:**
 - Python 3.13+
 - PyQt6
-- Windows (tested on Windows 10/11)
-- MinGW toolchains (bundled in production)
+- PyInstaller (for building)
+- MinGW toolchains (not in repository)
 
 ## License
 

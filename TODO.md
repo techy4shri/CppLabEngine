@@ -42,7 +42,7 @@ The IDE now supports both project-based and standalone file workflows:
 - [x] Test with MinGW toolchains (both 32-bit and 64-bit)
 - [x] Test graphics.h project build and linking
 - [x] Test standalone file compilation
-- [ ] Test OpenMP project end-to-end
+- [x] Test OpenMP project end-to-end
 - [ ] Test mixed console+graphics project
 - [ ] Verify DLL loading in run environment
 - [ ] Test all keyboard shortcuts

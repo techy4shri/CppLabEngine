@@ -1,6 +1,7 @@
 # Main application window and UI wiring.
 
 import os
+import sys
 import webbrowser
 from pathlib import Path
 from PyQt6 import uic
@@ -9,12 +10,13 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QThread, pyqtSignal, QStandardPaths
 from typing import Optional
+from . import __version__
 from .core.project_config import ProjectConfig, create_new_project
 from .core.builder import (
     build_project, run_executable, BuildResult, get_executable_path,
     build_single_file, run_single_file
 )
-from .core.toolchains import get_toolchains
+from .core.toolchains import get_toolchains, select_toolchain, get_app_root
 from .widgets.code_editor import CodeEditor
 from .widgets.project_explorer import ProjectExplorer
 from .widgets.output_panel import OutputPanel
@@ -50,8 +52,11 @@ class MainWindow(QMainWindow):
         self.standalone_toolchain_preference: str = "auto"
         self.standalone_standard: str = ""  # Will be set based on file type
         
-        # Load UI
-        ui_path = Path(__file__).parent / "ui" / "MainWindow.ui"
+        # Load UI (works in both dev and frozen modes)
+        if getattr(sys, 'frozen', False):
+            ui_path = get_app_root() / "cpplab" / "ui" / "MainWindow.ui"
+        else:
+            ui_path = Path(__file__).parent / "ui" / "MainWindow.ui"
         uic.loadUi(ui_path, self)
         
         self._setup_widgets()
@@ -928,7 +933,7 @@ int main() {
     
     def _on_offline_docs(self):
         """Open offline documentation in default browser."""
-        docs_path = Path(__file__).parent.parent.parent / "docs" / "index.html"
+        docs_path = get_app_root() / "docs" / "index.html"
         
         if docs_path.exists():
             webbrowser.open(docs_path.as_uri())
@@ -944,14 +949,15 @@ int main() {
         QMessageBox.about(
             self,
             "About CppLab IDE",
-            "<h2>CppLab IDE v1.0</h2>"
-            "<p>A dedicated offline C/C++ IDE for college students</p>"
+            f"<h2>CppLab IDE v{__version__}</h2>"
+            "<p>Offline C/C++ IDE with bundled MinGW 32/64, graphics.h, and OpenMP support.</p>"
             "<p><b>Features:</b></p>"
             "<ul>"
-            "<li>Support for graphics.h (32-bit legacy graphics)</li>"
-            "<li>Support for OpenMP (parallel computing)</li>"
+            "<li>Console and graphics projects (C11, C++11/14/17/20)</li>"
+            "<li>graphics.h via 32-bit MinGW with WinBGIm</li>"
+            "<li>OpenMP parallel computing support</li>"
+            "<li>Standalone source file mode</li>"
             "<li>Bundled MinGW toolchains</li>"
-            "<li>Project-based workflow</li>"
             "</ul>"
             "<p>© 2025 CppLab Project</p>"
         )
