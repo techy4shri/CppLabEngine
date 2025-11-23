@@ -7,7 +7,8 @@ from PyQt6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QWidget
 from PyQt6.QtCore import QThread, pyqtSignal
 from typing import Optional
 from .core.project_config import ProjectConfig, create_new_project
-from .core.builder import build_project, run_project, BuildResult
+from .core.builder import build_project, run_executable, BuildResult, get_executable_path
+from .core.toolchains import get_toolchains
 from .widgets.code_editor import CodeEditor
 from .widgets.project_explorer import ProjectExplorer
 from .widgets.output_panel import OutputPanel
@@ -22,7 +23,7 @@ class BuildThread(QThread):
         self.project_config = project_config
     
     def run(self):
-        result = build_project(self.project_config)
+        result = build_project(self.project_config, get_toolchains())
         self.build_finished.emit(result)
 
 
@@ -78,7 +79,7 @@ class MainWindow(QMainWindow):
                 project = create_new_project(**project_data)
                 self._load_project(project)
                 
-                main_file_path = Path(project.path) / project.main_file
+                main_file_path = project.get_main_file_path()
                 self._open_file_in_editor(str(main_file_path))
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to create project: {str(e)}")
@@ -164,7 +165,7 @@ class MainWindow(QMainWindow):
         self.build_thread.start()
     
     def _on_build_finished(self, result: BuildResult):
-        self.output_panel.append_output(f"\nCommand: {result.command}\n")
+        self.output_panel.append_output(f"\nCommand: {' '.join(result.command)}\n")
         
         if result.stdout:
             self.output_panel.append_output(result.stdout)
@@ -182,7 +183,7 @@ class MainWindow(QMainWindow):
             return
         
         exe_path = self.current_project.get_output_executable()
-        if not Path(exe_path).exists():
+        if not exe_path.exists():
             QMessageBox.warning(self, "No Executable", "Please build the project first.")
             return
         

@@ -1,6 +1,6 @@
-# Toolchain configuration and selection logic.
+# Toolchain abstraction: locates bundled MinGW compilers and selects the right one for a project.
 
-import os
+import sys
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
@@ -24,35 +24,66 @@ class ToolchainConfig:
     @property
     def lib_dir(self) -> Path:
         return self.root_dir / "lib"
+    
+    @property
+    def c_compiler(self) -> Path:
+        return self.bin_dir / "gcc.exe"
+    
+    @property
+    def cpp_compiler(self) -> Path:
+        return self.bin_dir / "g++.exe"
+    
+    def is_available(self) -> bool:
+        return self.bin_dir.exists() and self.cpp_compiler.exists()
 
 
-def get_toolchains_base_dir() -> Path:
-    script_dir = Path(__file__).parent.parent.parent.parent
-    return script_dir / "compilers"
-
-
-def get_mingw64_toolchain() -> ToolchainConfig:
-    base = get_toolchains_base_dir()
-    return ToolchainConfig(
-        name="mingw64",
-        root_dir=base / "mingw64",
-        is_32bit=False,
-        supports_openmp=True
-    )
-
-
-def get_mingw32_toolchain() -> ToolchainConfig:
-    base = get_toolchains_base_dir()
-    return ToolchainConfig(
-        name="mingw32",
-        root_dir=base / "mingw32",
-        is_32bit=True,
-        supports_openmp=False
-    )
-
-
-def select_toolchain(project_config) -> ToolchainConfig:
-    if project_config.features.graphics:
-        return get_mingw32_toolchain()
+def get_app_root() -> Path:
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent
     else:
-        return get_mingw64_toolchain()
+        return Path(__file__).parent.parent.parent.parent
+
+
+def get_toolchains() -> dict[str, ToolchainConfig]:
+    app_root = get_app_root()
+    compilers_dir = app_root / "compilers"
+    
+    toolchains = {
+        "mingw64": ToolchainConfig(
+            name="mingw64",
+            root_dir=compilers_dir / "mingw64",
+            is_32bit=False,
+            supports_openmp=True
+        ),
+        "mingw32": ToolchainConfig(
+            name="mingw32",
+            root_dir=compilers_dir / "mingw32",
+            is_32bit=True,
+            supports_openmp=False
+        )
+    }
+    
+    return toolchains
+
+
+def select_toolchain(project_config, toolchains: Optional[dict[str, ToolchainConfig]] = None) -> ToolchainConfig:
+    if toolchains is None:
+        toolchains = get_toolchains()
+    
+    uses_graphics = (
+        project_config.project_type == "graphics" or 
+        project_config.features.get("graphics", False)
+    )
+    
+    if uses_graphics:
+        selected = toolchains["mingw32"]
+    else:
+        selected = toolchains["mingw64"]
+    
+    if not selected.is_available():
+        raise FileNotFoundError(
+            f"Toolchain '{selected.name}' not found at {selected.root_dir}. "
+            f"Please ensure MinGW toolchains are installed in the compilers/ directory."
+        )
+    
+    return selected

@@ -1,81 +1,83 @@
-# Project configuration data model and persistence.
+# Project configuration: metadata, persistence, and project creation.
 
 import json
-import os
 from pathlib import Path
-from dataclasses import dataclass, asdict, field
-from typing import List, Dict, Literal
-
-
-@dataclass
-class ProjectFeatures:
-    graphics: bool = False
-    openmp: bool = False
+from dataclasses import dataclass, field
+from typing import Literal
 
 
 @dataclass
 class ProjectConfig:
     name: str
-    path: str
-    language: Literal["c", "cpp"] = "cpp"
-    standard: str = "c++17"
-    project_type: Literal["console", "graphics"] = "console"
-    features: ProjectFeatures = field(default_factory=ProjectFeatures)
-    files: List[str] = field(default_factory=list)
-    main_file: str = ""
-
+    root_path: Path
+    language: Literal["c", "cpp"]
+    standard: str
+    project_type: Literal["console", "graphics"]
+    features: dict[str, bool]
+    files: list[Path]
+    main_file: Path
+    
+    def get_main_file_path(self) -> Path:
+        return self.root_path / self.main_file
+    
+    def get_config_file_path(self) -> Path:
+        return self.root_path / ".cpplab.json"
+    
+    def get_output_executable(self) -> Path:
+        return self.root_path / "build" / f"{self.name}.exe"
+    
     @staticmethod
-    def load(project_dir: str) -> "ProjectConfig":
-        config_path = Path(project_dir) / ".cpplab.json"
-        with open(config_path, "r") as f:
+    def load(project_dir: Path | str) -> "ProjectConfig":
+        root = Path(project_dir)
+        config_path = root / ".cpplab.json"
+        
+        with open(config_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        features = ProjectFeatures(**data.get("features", {}))
+        
         return ProjectConfig(
             name=data["name"],
-            path=data["path"],
+            root_path=root,
             language=data.get("language", "cpp"),
             standard=data.get("standard", "c++17"),
             project_type=data.get("project_type", "console"),
-            features=features,
-            files=data.get("files", []),
-            main_file=data.get("main_file", "")
+            features=data.get("features", {}),
+            files=[Path(p) for p in data.get("files", [])],
+            main_file=Path(data.get("main_file", "src/main.cpp"))
         )
-
+    
     def save(self) -> None:
-        config_path = Path(self.path) / ".cpplab.json"
+        config_path = self.get_config_file_path()
+        
         data = {
             "name": self.name,
-            "path": self.path,
             "language": self.language,
             "standard": self.standard,
             "project_type": self.project_type,
-            "features": asdict(self.features),
-            "files": self.files,
-            "main_file": self.main_file
+            "features": self.features,
+            "files": [str(p) for p in self.files],
+            "main_file": str(self.main_file)
         }
-        with open(config_path, "w") as f:
+        
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
-
-    def get_output_executable(self) -> str:
-        return str(Path(self.path) / "build" / f"{self.name}.exe")
 
 
 def create_new_project(
     name: str,
-    parent_dir: str,
+    parent_dir: Path | str,
     language: Literal["c", "cpp"],
     standard: str,
     project_type: Literal["console", "graphics"],
     enable_graphics: bool = False,
     enable_openmp: bool = False
 ) -> ProjectConfig:
-    project_path = Path(parent_dir) / name
-    project_path.mkdir(parents=True, exist_ok=True)
+    root_path = Path(parent_dir) / name
+    root_path.mkdir(parents=True, exist_ok=True)
     
-    src_dir = project_path / "src"
+    src_dir = root_path / "src"
     src_dir.mkdir(exist_ok=True)
     
-    build_dir = project_path / "build"
+    build_dir = root_path / "build"
     build_dir.mkdir(exist_ok=True)
     
     if project_type == "graphics":
@@ -85,19 +87,22 @@ def create_new_project(
     if enable_graphics and project_type == "console":
         enable_openmp = False
     
-    features = ProjectFeatures(graphics=enable_graphics, openmp=enable_openmp)
+    features = {
+        "graphics": enable_graphics,
+        "openmp": enable_openmp
+    }
     
     ext = ".c" if language == "c" else ".cpp"
-    main_file = f"src/main{ext}"
-    main_path = project_path / main_file
+    main_file = Path(f"src/main{ext}")
+    main_file_path = root_path / main_file
     
     template = _generate_main_template(language, enable_graphics, enable_openmp)
-    with open(main_path, "w") as f:
+    with open(main_file_path, "w", encoding="utf-8") as f:
         f.write(template)
     
     config = ProjectConfig(
         name=name,
-        path=str(project_path),
+        root_path=root_path,
         language=language,
         standard=standard,
         project_type=project_type,
@@ -105,8 +110,8 @@ def create_new_project(
         files=[main_file],
         main_file=main_file
     )
-    config.save()
     
+    config.save()
     return config
 
 
