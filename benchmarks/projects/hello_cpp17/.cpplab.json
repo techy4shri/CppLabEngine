@@ -1,0 +1,13 @@
+{
+  "name": "hello_cpp17",
+  "language": "cpp",
+  "standard": "c++17",
+  "project_type": "console",
+  "features": {
+    "graphics": false,
+    "openmp": false
+  },
+  "files": ["src/main.cpp"],
+  "main_file": "src/main.cpp",
+  "toolchain_preference": "auto"
+}

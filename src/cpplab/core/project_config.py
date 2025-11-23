@@ -18,6 +18,16 @@ class ProjectConfig:
     main_file: Path
     toolchain_preference: str = "auto"  # "auto", "mingw64", "mingw32"
     
+    @property
+    def graphics(self) -> bool:
+        """Convenience property for graphics feature."""
+        return self.features.get("graphics", False)
+    
+    @property
+    def openmp(self) -> bool:
+        """Convenience property for OpenMP feature."""
+        return self.features.get("openmp", False)
+    
     def get_main_file_path(self) -> Path:
         return self.root_path / self.main_file
     
