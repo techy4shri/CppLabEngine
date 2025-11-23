@@ -1,0 +1,16 @@
+project_name,run_index,elapsed_ms
+hello_cpp17,1,0.93
+hello_cpp17,2,0.58
+hello_cpp17,3,0.62
+hello_cpp17,4,0.53
+hello_cpp17,5,0.51
+hello_openmp,1,1.29
+hello_openmp,2,0.71
+hello_openmp,3,0.72
+hello_openmp,4,0.66
+hello_openmp,5,0.57
+hello_graphics,1,1.81
+hello_graphics,2,2.06
+hello_graphics,3,0.73
+hello_graphics,4,0.99
+hello_graphics,5,0.57
