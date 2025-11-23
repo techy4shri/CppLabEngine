@@ -292,6 +292,28 @@ def run_executable(config: ProjectConfig, toolchains: dict[str, ToolchainConfig]
         )
 
 
+def detect_features_from_source(source_path: Path) -> dict[str, bool]:
+    """Detect graphics.h and OpenMP usage by scanning source file."""
+    features = {"graphics": False, "openmp": False}
+    
+    try:
+        with open(source_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+            
+        # Check for graphics.h include
+        if "#include <graphics.h>" in content or '#include "graphics.h"' in content:
+            features["graphics"] = True
+        
+        # Check for OpenMP pragmas
+        if "#pragma omp" in content:
+            features["openmp"] = True
+            
+    except Exception:
+        pass  # If file can't be read, assume no special features
+    
+    return features
+
+
 def project_config_for_single_file(
     source_path: Path,
     standard_override: Optional[str] = None,
@@ -310,13 +332,16 @@ def project_config_for_single_file(
     else:
         raise ValueError(f"Unsupported file extension: {ext}")
     
+    # Auto-detect graphics and OpenMP from source
+    features = detect_features_from_source(source_path)
+    
     return ProjectConfig(
         name=source_path.stem,
         root_path=source_path.parent,
         language=language,
         standard=standard,
         project_type="console",
-        features={"graphics": False, "openmp": False},
+        features=features,
         files=[Path(source_path.name)],
         main_file=Path(source_path.name),
         toolchain_preference=toolchain_preference
