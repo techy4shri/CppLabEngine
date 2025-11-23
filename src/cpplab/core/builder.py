@@ -40,7 +40,7 @@ def build_command(config: ProjectConfig, toolchain: ToolchainConfig) -> list[str
     cmd.extend(["-o", str(exe_path)])
     
     if config.features.get("graphics", False):
-        cmd.extend(["-lbgi", "-lgdi32", "-lcomdlg32", "-luuid"])
+        cmd.extend(["-lbgi", "-lgdi32", "-lcomdlg32", "-luuid", "-lole32", "-loleaut32"])
     
     return cmd
 
@@ -84,22 +84,49 @@ def build_project(config: ProjectConfig, toolchains: dict[str, ToolchainConfig])
         )
 
 
-def run_executable(config: ProjectConfig, toolchains: dict[str, ToolchainConfig]) -> Optional[subprocess.Popen]:
+def run_executable(config: ProjectConfig, toolchains: dict[str, ToolchainConfig]) -> BuildResult:
     toolchain = select_toolchain(config, toolchains)
     
     exe_path = get_executable_path(config)
     
     if not exe_path.exists():
-        return None
+        return BuildResult(
+            success=False,
+            command=[str(exe_path)],
+            stdout="",
+            stderr="Executable not found. Please build the project first.",
+            exe_path=None
+        )
     
     env = os.environ.copy()
     env["PATH"] = str(toolchain.bin_dir) + os.pathsep + env.get("PATH", "")
     
-    process = subprocess.Popen(
-        [str(exe_path)],
-        cwd=str(config.root_path),
-        env=env,
-        creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0
-    )
+    cmd = [str(exe_path)]
     
-    return process
+    try:
+        # Run in a new console window (Windows)
+        process = subprocess.Popen(
+            cmd,
+            cwd=str(config.root_path),
+            env=env,
+            creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0
+        )
+        
+        # Wait for process to complete
+        process.wait()
+        
+        return BuildResult(
+            success=(process.returncode == 0),
+            command=cmd,
+            stdout=f"Process exited with code {process.returncode}",
+            stderr="",
+            exe_path=exe_path
+        )
+    except Exception as e:
+        return BuildResult(
+            success=False,
+            command=cmd,
+            stdout="",
+            stderr=f"Failed to run executable: {str(e)}",
+            exe_path=exe_path
+        )

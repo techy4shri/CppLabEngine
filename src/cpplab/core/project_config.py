@@ -123,9 +123,9 @@ def _generate_main_template(language: str, graphics: bool, openmp: bool) -> str:
 
 int main() {
     int gd = DETECT, gm;
-    initgraph(&gd, &gm, "");
+    initgraph(&gd, &gm, (char*)"");
     
-    outtextxy(250, 200, "Hello from CppLab!");
+    outtextxy(250, 200, (char*)"Hello from CppLab!");
     circle(300, 250, 50);
     
     getch();
@@ -164,9 +164,9 @@ int main() {
 
 int main() {
     int gd = DETECT, gm;
-    initgraph(&gd, &gm, "");
+    initgraph(&gd, &gm, (char*)"");
     
-    outtextxy(250, 200, "Hello from CppLab!");
+    outtextxy(250, 200, (char*)"Hello from CppLab!");
     circle(300, 250, 50);
     
     getch();
