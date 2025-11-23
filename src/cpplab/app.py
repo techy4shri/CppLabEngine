@@ -5,12 +5,15 @@ import webbrowser
 from pathlib import Path
 from PyQt6 import uic
 from PyQt6.QtWidgets import (
-    QMainWindow, QFileDialog, QMessageBox, QWidget, QPlainTextEdit
+    QMainWindow, QFileDialog, QMessageBox, QWidget, QPlainTextEdit, QComboBox, QLabel
 )
 from PyQt6.QtCore import QThread, pyqtSignal, QStandardPaths
 from typing import Optional
 from .core.project_config import ProjectConfig, create_new_project
-from .core.builder import build_project, run_executable, BuildResult, get_executable_path
+from .core.builder import (
+    build_project, run_executable, BuildResult, get_executable_path,
+    build_single_file, run_single_file
+)
 from .core.toolchains import get_toolchains
 from .widgets.code_editor import CodeEditor
 from .widgets.project_explorer import ProjectExplorer
@@ -40,12 +43,19 @@ class MainWindow(QMainWindow):
         self.toolchains = get_toolchains()
         self.build_thread: Optional[BuildThread] = None
         self.open_editors: dict[str, CodeEditor] = {}  # file_path -> editor
+        self.standalone_files: set[Path] = set()  # Track standalone files
+        self._build_and_run_mode = False  # Track if build is part of build-and-run
+        
+        # Standalone settings
+        self.standalone_toolchain_preference: str = "auto"
+        self.standalone_standard: str = ""  # Will be set based on file type
         
         # Load UI
         ui_path = Path(__file__).parent / "ui" / "MainWindow.ui"
         uic.loadUi(ui_path, self)
         
         self._setup_widgets()
+        self._setup_combo_boxes()
         self._connect_signals()
         
         # Initialize toolchains and check availability
@@ -82,10 +92,77 @@ class MainWindow(QMainWindow):
             if placeholder and placeholder.objectName() == "placeholderTab":
                 self.editorTabWidget.removeTab(0)
     
+    def _setup_combo_boxes(self):
+        """Initialize toolchain and standard combo boxes."""
+        from PyQt6.QtWidgets import QLabel
+        
+        # Add toolchain combo to toolbar
+        self.mainToolBar.addSeparator()
+        toolchain_label = QLabel(" Toolchain: ")
+        self.mainToolBar.addWidget(toolchain_label)
+        
+        self.toolchainComboBox = QComboBox()
+        self.toolchainComboBox.addItem("Auto", "auto")
+        self.toolchainComboBox.addItem("64-bit (mingw64)", "mingw64")
+        self.toolchainComboBox.addItem("32-bit (mingw32)", "mingw32")
+        self.toolchainComboBox.setMinimumWidth(150)
+        self.mainToolBar.addWidget(self.toolchainComboBox)
+        
+        # Add standard combo to toolbar
+        standard_label = QLabel(" Standard: ")
+        self.mainToolBar.addWidget(standard_label)
+        
+        self.standardComboBox = QComboBox()
+        self.standardComboBox.setMinimumWidth(100)
+        self.mainToolBar.addWidget(self.standardComboBox)
+        
+        # Initialize with C++ standards (will be updated when files are opened)
+        self._update_standard_combo_for_language("cpp", "c++17")
+    
+    def _update_standard_combo_for_language(self, language: str, current_standard: Optional[str] = None):
+        """Update standard combo box based on language."""
+        self.standardComboBox.blockSignals(True)  # Prevent triggering change event
+        self.standardComboBox.clear()
+        
+        if language == "c":
+            self.standardComboBox.addItem("C11", "c11")
+            self.standardComboBox.addItem("C17", "c17")
+            self.standardComboBox.addItem("C99", "c99")
+            default = current_standard or "c11"
+        else:  # cpp
+            self.standardComboBox.addItem("C++20", "c++20")
+            self.standardComboBox.addItem("C++17", "c++17")
+            self.standardComboBox.addItem("C++14", "c++14")
+            self.standardComboBox.addItem("C++11", "c++11")
+            default = current_standard or "c++17"
+        
+        # Set current selection
+        for i in range(self.standardComboBox.count()):
+            if self.standardComboBox.itemData(i) == default:
+                self.standardComboBox.setCurrentIndex(i)
+                break
+        
+        self.standardComboBox.blockSignals(False)
+    
+    def _update_toolchain_combo(self, preference: str):
+        """Update toolchain combo box selection."""
+        self.toolchainComboBox.blockSignals(True)
+        
+        if preference == "auto":
+            self.toolchainComboBox.setCurrentIndex(0)
+        elif preference == "mingw64":
+            self.toolchainComboBox.setCurrentIndex(1)
+        elif preference == "mingw32":
+            self.toolchainComboBox.setCurrentIndex(2)
+        
+        self.toolchainComboBox.blockSignals(False)
+    
     def _connect_signals(self):
         # File menu
         self.newProjectAction.triggered.connect(self.on_new_project)
+        self.newSourceFileAction.triggered.connect(self.on_new_source_file)
         self.openProjectAction.triggered.connect(self.on_open_project)
+        self.openSourceFileAction.triggered.connect(self.on_open_source_file)
         self.saveFileAction.triggered.connect(self.on_save_file)
         self.saveAllAction.triggered.connect(self.on_save_all)
         self.closeFileAction.triggered.connect(self.on_close_file)
@@ -128,6 +205,37 @@ class MainWindow(QMainWindow):
         self.project_explorer.file_double_clicked.connect(self.open_file_in_editor)
         self.editorTabWidget.tabCloseRequested.connect(self._close_editor_tab)
         self.editorTabWidget.currentChanged.connect(self._on_tab_changed)
+        
+        # Combo box signals
+        self.toolchainComboBox.currentIndexChanged.connect(self.on_toolchain_changed)
+        self.standardComboBox.currentIndexChanged.connect(self.on_standard_changed)
+    
+    def on_toolchain_changed(self, index: int):
+        """Handle toolchain combo box selection change."""
+        # Map index to internal value
+        toolchain_map = {0: "auto", 1: "mingw64", 2: "mingw32"}
+        value = toolchain_map.get(index, "auto")
+        
+        if self.current_project:
+            self.current_project.toolchain_preference = value
+            self.current_project.save()
+        else:
+            self.standalone_toolchain_preference = value
+    
+    def on_standard_changed(self, index: int):
+        """Handle standard combo box selection change."""
+        if index < 0:
+            return
+        
+        std_value = self.standardComboBox.currentData()
+        if not std_value:
+            return
+        
+        if self.current_project:
+            self.current_project.standard = std_value
+            self.current_project.save()
+        else:
+            self.standalone_standard = std_value
     
     def _check_toolchains(self):
         """Check if toolchains are available and show warning if not."""
@@ -189,9 +297,131 @@ class MainWindow(QMainWindow):
         self.project_explorer.load_project(config)
         self.setWindowTitle(f"CppLab IDE - {config.name}")
         
+        # Clear standalone mode
+        self.standalone_files.clear()
+        
+        # Update combo boxes for project
+        self._update_toolchain_combo(config.toolchain_preference)
+        self._update_standard_combo_for_language(config.language, config.standard)
+        
         # Update status bar
         if hasattr(self, 'statusProjectLabel'):
             self.statusProjectLabel.setText(f"Project: {config.name}")
+        
+        self._update_ui_state()
+    
+    def on_new_source_file(self):
+        """Create a new standalone source file."""
+        # Ask user for file name and location
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "New Source File",
+            str(Path.home()),
+            "C Source File (*.c);;C++ Source File (*.cpp);;C++ Source File (*.cc);;C++ Source File (*.cxx);;All Files (*.*)"
+        )
+        
+        if not file_path:
+            return
+        
+        abs_path = Path(file_path).resolve()
+        
+        # Determine language from extension
+        ext = abs_path.suffix.lower()
+        if ext in ['.cpp', '.cc', '.cxx']:
+            language = "cpp"
+            template_content = """#include <iostream>
+
+int main() {
+    std::cout << "Hello, World!" << std::endl;
+    return 0;
+}
+"""
+        elif ext == '.c':
+            language = "c"
+            template_content = """#include <stdio.h>
+
+int main() {
+    printf("Hello, World!\\n");
+    return 0;
+}
+"""
+        else:
+            # Default to C++
+            language = "cpp"
+            template_content = """#include <iostream>
+
+int main() {
+    std::cout << "Hello, World!" << std::endl;
+    return 0;
+}
+"""
+        
+        try:
+            # Create the file with template content
+            abs_path.parent.mkdir(parents=True, exist_ok=True)
+            abs_path.write_text(template_content, encoding='utf-8')
+            
+            # Open in editor
+            self.open_file_in_editor(str(abs_path))
+            
+            # Mark as standalone
+            self.standalone_files.add(abs_path)
+            
+            # Clear project if this is first standalone file
+            if self.current_project:
+                self.current_project = None
+                self.project_explorer.clear()
+            
+            # Update combo boxes for standalone mode
+            self._update_standard_combo_for_language(language, self.standalone_standard)
+            self._update_toolchain_combo(self.standalone_toolchain_preference)
+            
+            # Update status bar
+            self.setWindowTitle(f"CppLab IDE - {abs_path.name}")
+            if hasattr(self, 'statusProjectLabel'):
+                self.statusProjectLabel.setText(f"Standalone: {abs_path.name}")
+            
+            self._update_ui_state()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to create source file:\n{str(e)}")
+    
+    def on_open_source_file(self):
+        """Open a standalone source file without creating a project."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Source File",
+            str(Path.home()),
+            "C/C++ Source Files (*.c *.cpp *.cc *.cxx);;All Files (*.*)"
+        )
+        
+        if not file_path:
+            return
+        
+        abs_path = Path(file_path).resolve()
+        
+        # Open in editor
+        self.open_file_in_editor(str(abs_path))
+        
+        # Mark as standalone
+        self.standalone_files.add(abs_path)
+        
+        # Clear project if this is first standalone file
+        if self.current_project:
+            self.current_project = None
+            self.project_explorer.clear()
+        
+        # Update combo boxes for standalone mode
+        # Detect language from file extension
+        ext = abs_path.suffix.lower()
+        language = "c" if ext == ".c" else "cpp"
+        self._update_standard_combo_for_language(language, self.standalone_standard)
+        self._update_toolchain_combo(self.standalone_toolchain_preference)
+        
+        # Update status bar
+        self.setWindowTitle(f"CppLab IDE - {abs_path.name}")
+        if hasattr(self, 'statusProjectLabel'):
+            self.statusProjectLabel.setText(f"Standalone: {abs_path.name}")
         
         self._update_ui_state()
     
@@ -417,17 +647,13 @@ class MainWindow(QMainWindow):
         self.output_panel.append_output(text)
     
     def on_build_project(self):
-        """Build current project."""
-        if not self.current_project:
-            QMessageBox.warning(self, "No Project", "Please create or open a project first.")
-            return
-        
+        """Build current project or standalone file."""
         # Check toolchains
         if not self.toolchains:
             QMessageBox.warning(
                 self,
                 "Toolchains Not Available",
-                "MinGW toolchains are not installed. Please install toolchains to build projects."
+                "MinGW toolchains are not installed. Please install toolchains to build."
             )
             return
         
@@ -441,10 +667,61 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'statusBuildLabel'):
             self.statusBuildLabel.setText("Building...")
         
-        # Start build in background thread
-        self.build_thread = BuildThread(self.current_project)
-        self.build_thread.build_finished.connect(self._on_build_finished)
-        self.build_thread.start()
+        # Determine build mode
+        if self.current_project:
+            # Project mode
+            self.build_thread = BuildThread(self.current_project)
+            if self._build_and_run_mode:
+                self.build_thread.build_finished.connect(self._on_build_and_run_finished)
+                self._build_and_run_mode = False
+            else:
+                self.build_thread.build_finished.connect(self._on_build_finished)
+            self.build_thread.start()
+        else:
+            # Standalone mode
+            editor = self.current_editor()
+            if not editor or not editor.file_path:
+                QMessageBox.warning(self, "No Source File", "Please open a source file to build.")
+                if hasattr(self, 'statusBuildLabel'):
+                    self.statusBuildLabel.setText("Idle")
+                return
+            
+            source_path = Path(editor.file_path)
+            
+            # Build in background thread
+            from PyQt6.QtCore import QThread
+            
+            class StandaloneBuildThread(QThread):
+                build_finished = pyqtSignal(object)
+                
+                def __init__(self, path, toolchains, standard_override, toolchain_preference):
+                    super().__init__()
+                    self.source_path = path
+                    self.toolchains = toolchains
+                    self.standard_override = standard_override
+                    self.toolchain_preference = toolchain_preference
+                
+                def run(self):
+                    result = build_single_file(
+                        self.source_path, 
+                        self.toolchains, 
+                        standard_override=self.standard_override,
+                        toolchain_preference=self.toolchain_preference
+                    )
+                    self.build_finished.emit(result)
+            
+            self.build_thread = StandaloneBuildThread(
+                source_path, 
+                self.toolchains,
+                self.standalone_standard,
+                self.standalone_toolchain_preference
+            )
+            if self._build_and_run_mode:
+                self.build_thread.build_finished.connect(self._on_build_and_run_finished)
+                self._build_and_run_mode = False
+            else:
+                self.build_thread.build_finished.connect(self._on_build_finished)
+            self.build_thread.start()
     
     def _on_build_finished(self, result: BuildResult):
         """Handle build completion."""
@@ -475,96 +752,137 @@ class MainWindow(QMainWindow):
             # For v1, just leave it empty or add a single row
     
     def on_run_project(self):
-        """Run project executable."""
-        if not self.current_project:
-            QMessageBox.warning(self, "No Project", "Please create or open a project first.")
-            return
-        
+        """Run project executable or standalone file."""
         # Check toolchains
         if not self.toolchains:
             QMessageBox.warning(
                 self,
                 "Toolchains Not Available",
-                "MinGW toolchains are not installed. Please install toolchains to run projects."
+                "MinGW toolchains are not installed. Please install toolchains to run."
             )
             return
         
-        # Check if executable exists
-        exe_path = get_executable_path(self.current_project)
-        if not exe_path.exists():
-            reply = QMessageBox.question(
-                self,
-                "No Executable",
-                "Project has not been built yet. Build now?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
+        # Determine run mode
+        if self.current_project:
+            # Project mode
+            exe_path = get_executable_path(self.current_project)
+            if not exe_path.exists():
+                reply = QMessageBox.question(
+                    self,
+                    "No Executable",
+                    "Project has not been built yet. Build now?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                
+                if reply == QMessageBox.StandardButton.Yes:
+                    self.on_build_and_run()
+                return
             
-            if reply == QMessageBox.StandardButton.Yes:
-                self.on_build_and_run()
-            return
-        
-        # Run executable
-        if hasattr(self, 'statusBuildLabel'):
-            self.statusBuildLabel.setText("Running...")
-        
-        self.output_panel.append_output("\n=== Running Executable ===\n")
-        
-        try:
-            result = run_executable(self.current_project, self.toolchains)
-            
-            self.output_panel.append_output(f"Command: {' '.join(result.command)}\n")
-            
-            if result.stdout:
-                self.output_panel.append_output("\n--- Program Output ---\n")
-                self.output_panel.append_output(result.stdout)
-            
-            if result.stderr:
-                self.output_panel.append_output("\n--- Error Output ---\n")
-                self.output_panel.append_output(result.stderr)
-            
-            if result.success:
-                self.output_panel.append_output("\n=== Execution Completed ===")
-                if hasattr(self, 'statusBuildLabel'):
-                    self.statusBuildLabel.setText("Execution completed")
-            else:
-                self.output_panel.append_output("\n=== Execution Failed ===")
-                if hasattr(self, 'statusBuildLabel'):
-                    self.statusBuildLabel.setText("Execution failed")
-        
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to run project:\n{str(e)}")
+            # Run executable
             if hasattr(self, 'statusBuildLabel'):
-                self.statusBuildLabel.setText("Execution error")
+                self.statusBuildLabel.setText("Running...")
+            
+            self.output_panel.append_output("\n=== Running Executable ===\n")
+            
+            try:
+                result = run_executable(self.current_project, self.toolchains)
+                
+                self.output_panel.append_output(f"Command: {' '.join(result.command)}\n")
+                
+                if result.stdout:
+                    self.output_panel.append_output("\n--- Program Output ---\n")
+                    self.output_panel.append_output(result.stdout)
+                
+                if result.stderr:
+                    self.output_panel.append_output("\n--- Error Output ---\n")
+                    self.output_panel.append_output(result.stderr)
+                
+                if result.success:
+                    self.output_panel.append_output("\n=== Execution Completed ===")
+                    if hasattr(self, 'statusBuildLabel'):
+                        self.statusBuildLabel.setText("Execution completed")
+                else:
+                    self.output_panel.append_output("\n=== Execution Failed ===")
+                    if hasattr(self, 'statusBuildLabel'):
+                        self.statusBuildLabel.setText("Execution failed")
+            
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to run project:\n{str(e)}")
+                if hasattr(self, 'statusBuildLabel'):
+                    self.statusBuildLabel.setText("Execution error")
+        else:
+            # Standalone mode
+            editor = self.current_editor()
+            if not editor or not editor.file_path:
+                QMessageBox.warning(self, "No Source File", "Please open a source file to run.")
+                return
+            
+            source_path = Path(editor.file_path)
+            
+            # Check if built
+            from .core.builder import project_config_for_single_file
+            config = project_config_for_single_file(
+                source_path, 
+                standard_override=self.standalone_standard,
+                toolchain_preference=self.standalone_toolchain_preference
+            )
+            exe_path = get_executable_path(config)
+            
+            if not exe_path.exists():
+                reply = QMessageBox.question(
+                    self,
+                    "No Executable",
+                    "File has not been built yet. Build now?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                
+                if reply == QMessageBox.StandardButton.Yes:
+                    self.on_build_and_run()
+                return
+            
+            # Run executable
+            if hasattr(self, 'statusBuildLabel'):
+                self.statusBuildLabel.setText("Running...")
+            
+            self.output_panel.append_output("\n=== Running Executable ===\n")
+            
+            try:
+                result = run_single_file(
+                    source_path, 
+                    self.toolchains,
+                    standard_override=self.standalone_standard,
+                    toolchain_preference=self.standalone_toolchain_preference
+                )
+                
+                self.output_panel.append_output(f"Command: {' '.join(result.command)}\n")
+                
+                if result.stdout:
+                    self.output_panel.append_output("\n--- Program Output ---\n")
+                    self.output_panel.append_output(result.stdout)
+                
+                if result.stderr:
+                    self.output_panel.append_output("\n--- Error Output ---\n")
+                    self.output_panel.append_output(result.stderr)
+                
+                if result.success:
+                    self.output_panel.append_output("\n=== Execution Completed ===")
+                    if hasattr(self, 'statusBuildLabel'):
+                        self.statusBuildLabel.setText("Execution completed")
+                else:
+                    self.output_panel.append_output("\n=== Execution Failed ===")
+                    if hasattr(self, 'statusBuildLabel'):
+                        self.statusBuildLabel.setText("Execution failed")
+            
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to run file:\n{str(e)}")
+                if hasattr(self, 'statusBuildLabel'):
+                    self.statusBuildLabel.setText("Execution error")
     
     def on_build_and_run(self):
-        """Build project and run if successful."""
-        if not self.current_project:
-            QMessageBox.warning(self, "No Project", "Please create or open a project first.")
-            return
-        
-        # Check toolchains
-        if not self.toolchains:
-            QMessageBox.warning(
-                self,
-                "Toolchains Not Available",
-                "MinGW toolchains are not installed. Please install toolchains to build and run projects."
-            )
-            return
-        
-        # Save all files before building
-        self.on_save_all()
-        
-        # Clear output and update status
-        self.output_panel.clear_output()
-        self.output_panel.append_output("=== Build Started ===\n")
-        
-        if hasattr(self, 'statusBuildLabel'):
-            self.statusBuildLabel.setText("Building...")
-        
-        # Start build in background thread
-        self.build_thread = BuildThread(self.current_project)
-        self.build_thread.build_finished.connect(self._on_build_and_run_finished)
-        self.build_thread.start()
+        """Build and run current project or standalone file."""
+        # Just trigger build with build-and-run flag
+        self._build_and_run_mode = True
+        self.on_build_project()
     
     def _on_build_and_run_finished(self, result: BuildResult):
         """Handle build completion and run if successful."""
@@ -645,6 +963,10 @@ class MainWindow(QMainWindow):
         has_project = self.current_project is not None
         has_editor = self.current_editor() is not None
         has_toolchains = self.toolchains is not None
+        has_standalone = len(self.standalone_files) > 0 and has_editor
+        
+        # Can build/run if we have a project OR a standalone file
+        can_build_run = (has_project or has_standalone) and has_toolchains
         
         # File menu
         self.saveFileAction.setEnabled(has_editor)
@@ -660,8 +982,9 @@ class MainWindow(QMainWindow):
         self.findAction.setEnabled(has_editor)
         self.replaceAction.setEnabled(has_editor)
         
-        # Build menu (requires both project and toolchains)
-        self.buildProjectAction.setEnabled(has_project and has_toolchains)
-        self.runProjectAction.setEnabled(has_project and has_toolchains)
-        self.buildAndRunAction.setEnabled(has_project and has_toolchains)
-        self.cleanProjectAction.setEnabled(has_project)
+        # Build menu (works for both project and standalone)
+        self.buildProjectAction.setEnabled(can_build_run)
+        self.runProjectAction.setEnabled(can_build_run)
+        self.buildAndRunAction.setEnabled(can_build_run)
+        self.cleanProjectAction.setEnabled(has_project)  # Only for projects
+

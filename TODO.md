@@ -1,42 +1,53 @@
 # CppLab IDE - Roadmap & TODO
 
-## Current Status: v1.0 Core Complete ✓
+## Current Status: v1.1 Standalone Mode Complete ✓
 
-The core plumbing is fully implemented:
-- ✓ Project configuration system
-- ✓ Toolchain selection logic
-- ✓ Build system with compiler command generation
-- ✓ Main window with editor tabs
-- ✓ Project explorer
-- ✓ New project dialog
-- ✓ Syntax highlighting
-- ✓ Build output panel
+The IDE now supports both project-based and standalone file workflows:
+- ✓ Full project system with .cpplab.json configuration
+- ✓ Standalone source file mode (compile single .c/.cpp files)
+- ✓ Toolchain selection logic (mingw32 for graphics, mingw64 for console)
+- ✓ Build system with proper compiler flags
+- ✓ Graphics.h support (32-bit, with all required libraries)
+- ✓ OpenMP support (64-bit)
+- ✓ Syntax highlighting and code editor
+- ✓ Build output panel with error display
+- ✓ Run executables in separate console window
 
-## Phase 1: Core Features (v1.0)
+## Phase 1: Core Features (v1.0) - COMPLETE ✓
 
 ### Completed ✓
 - [x] Project data model (ProjectConfig)
-- [x] Toolchain management
+- [x] Toolchain management (mingw32, mingw64)
 - [x] Build system (compile + run)
-- [x] Main window UI
-- [x] Code editor with syntax highlighting
+- [x] Main window UI with dock-based layout
+- [x] Code editor with C++ syntax highlighting
 - [x] Project explorer tree
-- [x] New project dialog
+- [x] New project dialog with type selection
 - [x] Build output panel
 - [x] File save/save all
-- [x] Graphics.h support
+- [x] Graphics.h support with proper linking (-lole32, -loleaut32)
 - [x] OpenMP support
-- [x] Project type templates
+- [x] Project type templates (Console, Graphics, OpenMP)
+- [x] **Standalone source file mode** - New in v1.1!
+- [x] Open Source File action (Ctrl+Shift+O)
+- [x] Build single .c/.cpp files without projects
+- [x] Auto-detect language from extension
+- [x] Build output in file's directory
+- [x] Run standalone executables
+- [x] Build and Run workflow for both modes
+- [x] Proper status bar updates
+- [x] UI state management (enable/disable actions)
 
-### Testing Needed
-- [ ] Test with actual MinGW toolchains
-- [ ] Test graphics.h project end-to-end
+### Testing Status
+- [x] Test with MinGW toolchains (both 32-bit and 64-bit)
+- [x] Test graphics.h project build and linking
+- [x] Test standalone file compilation
 - [ ] Test OpenMP project end-to-end
 - [ ] Test mixed console+graphics project
 - [ ] Verify DLL loading in run environment
 - [ ] Test all keyboard shortcuts
 
-## Phase 2: Essential Features (v1.1)
+## Phase 2: Essential Features (v1.2) - In Progress
 
 ### Project Management
 - [ ] Add existing file to project

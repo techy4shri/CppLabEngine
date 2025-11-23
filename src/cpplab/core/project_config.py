@@ -16,6 +16,7 @@ class ProjectConfig:
     features: dict[str, bool]
     files: list[Path]
     main_file: Path
+    toolchain_preference: str = "auto"  # "auto", "mingw64", "mingw32"
     
     def get_main_file_path(self) -> Path:
         return self.root_path / self.main_file
@@ -42,7 +43,8 @@ class ProjectConfig:
             project_type=data.get("project_type", "console"),
             features=data.get("features", {}),
             files=[Path(p) for p in data.get("files", [])],
-            main_file=Path(data.get("main_file", "src/main.cpp"))
+            main_file=Path(data.get("main_file", "src/main.cpp")),
+            toolchain_preference=data.get("toolchain_preference", "auto")
         )
     
     def save(self) -> None:
@@ -55,7 +57,8 @@ class ProjectConfig:
             "project_type": self.project_type,
             "features": self.features,
             "files": [str(p) for p in self.files],
-            "main_file": str(self.main_file)
+            "main_file": str(self.main_file),
+            "toolchain_preference": self.toolchain_preference
         }
         
         with open(config_path, "w", encoding="utf-8") as f:
@@ -108,7 +111,8 @@ def create_new_project(
         project_type=project_type,
         features=features,
         files=[main_file],
-        main_file=main_file
+        main_file=main_file,
+        toolchain_preference="auto"
     )
     
     config.save()

@@ -75,8 +75,16 @@
     <property name="title">
      <string>&amp;File</string>
     </property>
-    <addaction name="newProjectAction"/>
+    <widget class="QMenu" name="menuNew">
+     <property name="title">
+      <string>&amp;New</string>
+     </property>
+     <addaction name="newProjectAction"/>
+     <addaction name="newSourceFileAction"/>
+    </widget>
+    <addaction name="menuNew"/>
     <addaction name="openProjectAction"/>
+    <addaction name="openSourceFileAction"/>
     <addaction name="separator"/>
     <addaction name="saveFileAction"/>
     <addaction name="saveAllAction"/>
@@ -163,6 +171,7 @@
    <addaction name="buildProjectAction"/>
    <addaction name="runProjectAction"/>
    <addaction name="buildAndRunAction"/>
+   <addaction name="separator"/>
   </widget>
   <widget class="QDockWidget" name="projectDockWidget">
    <property name="windowTitle">
@@ -312,12 +321,28 @@
     <string>Ctrl+N</string>
    </property>
   </action>
+  <action name="newSourceFileAction">
+   <property name="text">
+    <string>New &amp;Source File...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+N</string>
+   </property>
+  </action>
   <action name="openProjectAction">
    <property name="text">
     <string>&amp;Open Project...</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+O</string>
+   </property>
+  </action>
+  <action name="openSourceFileAction">
+   <property name="text">
+    <string>Open &amp;Source File...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+O</string>
    </property>
   </action>
   <action name="saveFileAction">

@@ -70,15 +70,26 @@ def select_toolchain(project_config, toolchains: Optional[dict[str, ToolchainCon
     if toolchains is None:
         toolchains = get_toolchains()
     
+    # Check if graphics is enabled
     uses_graphics = (
         project_config.project_type == "graphics" or 
         project_config.features.get("graphics", False)
     )
     
+    # Graphics projects ALWAYS use mingw32 (32-bit), regardless of preference
     if uses_graphics:
         selected = toolchains["mingw32"]
     else:
-        selected = toolchains["mingw64"]
+        # Check toolchain preference
+        pref = getattr(project_config, "toolchain_preference", "auto")
+        
+        if pref == "mingw64" and "mingw64" in toolchains:
+            selected = toolchains["mingw64"]
+        elif pref == "mingw32" and "mingw32" in toolchains:
+            selected = toolchains["mingw32"]
+        else:
+            # Auto fallback: console projects default to mingw64
+            selected = toolchains.get("mingw64") or toolchains.get("mingw32")
     
     if not selected.is_available():
         raise FileNotFoundError(

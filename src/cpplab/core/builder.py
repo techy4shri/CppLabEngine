@@ -4,7 +4,7 @@ import subprocess
 import os
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Literal
 from .project_config import ProjectConfig
 from .toolchains import ToolchainConfig, get_toolchains, select_toolchain
 
@@ -104,22 +104,26 @@ def run_executable(config: ProjectConfig, toolchains: dict[str, ToolchainConfig]
     cmd = [str(exe_path)]
     
     try:
-        # Run in a new console window (Windows)
+        # Run and capture output
         process = subprocess.Popen(
             cmd,
             cwd=str(config.root_path),
             env=env,
-            creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
         )
         
-        # Wait for process to complete
-        process.wait()
+        # Wait for process to complete and capture output
+        stdout, stderr = process.communicate()
         
         return BuildResult(
             success=(process.returncode == 0),
             command=cmd,
-            stdout=f"Process exited with code {process.returncode}",
-            stderr="",
+            stdout=stdout,
+            stderr=stderr,
             exe_path=exe_path
         )
     except Exception as e:
@@ -130,3 +134,56 @@ def run_executable(config: ProjectConfig, toolchains: dict[str, ToolchainConfig]
             stderr=f"Failed to run executable: {str(e)}",
             exe_path=exe_path
         )
+
+
+def project_config_for_single_file(
+    source_path: Path,
+    standard_override: Optional[str] = None,
+    toolchain_preference: str = "auto"
+) -> ProjectConfig:
+    """Create a synthetic ProjectConfig for a standalone source file."""
+    ext = source_path.suffix.lower()
+    
+    # Determine language from extension
+    if ext == ".c":
+        language: Literal["c", "cpp"] = "c"
+        standard = standard_override or "c11"
+    elif ext in [".cpp", ".cc", ".cxx"]:
+        language = "cpp"
+        standard = standard_override or "c++17"
+    else:
+        raise ValueError(f"Unsupported file extension: {ext}")
+    
+    return ProjectConfig(
+        name=source_path.stem,
+        root_path=source_path.parent,
+        language=language,
+        standard=standard,
+        project_type="console",
+        features={"graphics": False, "openmp": False},
+        files=[Path(source_path.name)],
+        main_file=Path(source_path.name),
+        toolchain_preference=toolchain_preference
+    )
+
+
+def build_single_file(
+    source_path: Path,
+    toolchains: dict[str, ToolchainConfig],
+    standard_override: Optional[str] = None,
+    toolchain_preference: str = "auto"
+) -> BuildResult:
+    """Build a standalone source file without a project."""
+    config = project_config_for_single_file(source_path, standard_override, toolchain_preference)
+    return build_project(config, toolchains)
+
+
+def run_single_file(
+    source_path: Path,
+    toolchains: dict[str, ToolchainConfig],
+    standard_override: Optional[str] = None,
+    toolchain_preference: str = "auto"
+) -> BuildResult:
+    """Run a standalone source file's executable."""
+    config = project_config_for_single_file(source_path, standard_override, toolchain_preference)
+    return run_executable(config, toolchains)
