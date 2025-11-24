@@ -1,6 +1,8 @@
 # CppLab IDE
 
 A dedicated offline C/C++ IDE for college students with bundled MinGW compilers, graphics.h support, and OpenMP.
+So I made this C/C++ IDE after being frustrated with Dev-Cpp (long live that software) and its inability to let me code in C++17/20 while working with omp.h and old graphics header. Now, this is by no means a proper alternative (in my unprofessional and inexperienced opinion) but, this works nicely, the app has extremely low build latency and runtime and most of all, it has support for both that legacy header and modern/shiny cpp which many students, including me learn.
+Look, I know you would rather go with VS Code, but I ain't got that in my college lab and so this is my solution. Use it, critic it, support it, or ignore it, your choice. Have a nice day and happy programming :D
 
 ## Downloads
 
@@ -13,12 +15,12 @@ A dedicated offline C/C++ IDE for college students with bundled MinGW compilers,
 2. Run `CppLabIDE.exe` - no installation needed
 3. Start coding with C/C++ immediately
 
-**Requirements:** Windows 10/11 (64-bit)
+**Requirements:** Windows 10/11 (64-bit) (again, this app was built in windows 11 so yeah, I got no idea if this will work with older versions but if it does, good for you)
 
 ## Features
 
 - **Console and Graphics Projects**: Support for standard C/C++ and legacy graphics.h
-- **Multiple C/C++ Standards**: C11, C++11/14/17/20 (toolchain-dependent)
+- **Multiple C/C++ Standards**: C11/14/17/20, C++11/14/17/20 (toolchain-dependent)
 - **Graphics Support**: Full graphics.h via 32-bit MinGW with WinBGIm library
 - **OpenMP Support**: Parallel computing with 64-bit MinGW
 - **Standalone File Mode**: Compile single .c/.cpp files without creating projects
@@ -63,7 +65,7 @@ CppLabEngine/
 ├── compilers/
 │   ├── mingw32/                # 32-bit MinGW (for graphics.h)
 │   └── mingw64/                # 64-bit MinGW (for OpenMP)
-└── docs/                       # Offline documentation (future)
+└── docs_source/                       # Offline documentation
 ```
 
 ### Toolchain Selection Rules
@@ -97,7 +99,9 @@ CppLabEngine/
    - Ensure graphics.h libraries are in `mingw32/include` and `mingw32/lib`
 
 4. **Run the IDE**:
+
    ```bash
+   #The first command has issues so eh, use the .bat for now
    python -m cpplab.main
    ```
    Or use the launcher:
@@ -126,7 +130,7 @@ This will:
 4. Create `dist/CppLabIDE-v0.1.0-win64.zip`
 
 **Build Requirements:**
-- Python 3.13+
+- Python 3.11+
 - PyInstaller
 - compilers/ directory with mingw32 and mingw64 toolchains (not in git)
 
@@ -193,10 +197,10 @@ The codebase follows these conventions:
 
 - [ ] Integrated debugger (GDB)
 - [ ] Linux and macOS support
-- [ ] Auto-completion and IntelliSense
+- [ ] Auto-completion
 - [ ] Code templates library
 - [ ] Project templates
-- [ ] Settings dialog for toolchain configuration
+- [x] Settings dialog for toolchain configuration
 - [ ] Git integration
 - [ ] Enhanced documentation browser
 
@@ -204,7 +208,6 @@ The codebase follows these conventions:
 
 **For End Users (Prebuilt):**
 - Windows 10/11 (64-bit)
-- No additional software needed
 
 **For Development:**
 - Python 3.13+
@@ -214,12 +217,13 @@ The codebase follows these conventions:
 
 ## License
 
-See LICENSE file for details.
+See [LICENSE](/LICENSE) file for details.
 
 ## Contributing
 
 This project is designed for college lab environments. Contributions welcome for:
 - Bug fixes
+- Memory based optimizations
 - Documentation improvements
 - Additional project templates
 - UI/UX enhancements
