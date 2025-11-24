@@ -20,7 +20,7 @@ Look, I know you would rather go with VS Code, but I ain't got that in my colleg
 ## Features
 
 - **Console and Graphics Projects**: Support for standard C/C++ and legacy graphics.h
-- **Multiple C/C++ Standards**: C11/14/17/20, C++11/14/17/20 (toolchain-dependent)
+- **Multiple C/C++ Standards**: C99/11/17/18/23, C++11/14/17/20/23 (toolchain-dependent)
 - **Graphics Support**: Full graphics.h via 32-bit MinGW with WinBGIm library
 - **OpenMP Support**: Parallel computing with 64-bit MinGW
 - **Standalone File Mode**: Compile single .c/.cpp files without creating projects
@@ -183,7 +183,7 @@ This is an early release focused on core functionality:
 - **Build Performance**: Builds may be slow on some systems
   - Recommendation: Add CppLabIDE folder to antivirus exclusions for faster builds
 - **Graphics + OpenMP**: Cannot use both features in same project (graphics requires 32-bit, OpenMP better on 64-bit)
-- **Limited Standards**: C++20/23 support depends on MinGW version bundled
+- **Limited Standards**: C++20/23 and C18/23 support depends on MinGW version bundled (experimental features may not work)
 
 ## Code Style
 

@@ -25,7 +25,7 @@
 ## ✨ Features
 
 ### Project Management
-- Console applications (C11, C++11/14/17/20)
+- Console applications (C99/11/17/18/23, C++11/14/17/20/23)
 - Graphics applications (graphics.h via WinBGIm)
 - OpenMP parallel computing projects
 - Project configuration via JSON files

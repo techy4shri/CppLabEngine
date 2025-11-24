@@ -163,6 +163,7 @@
     <bool>false</bool>
    </attribute>
    <addaction name="newProjectAction"/>
+   <addaction name="newSourceFileAction"/>
    <addaction name="openProjectAction"/>
    <addaction name="saveFileAction"/>
    <addaction name="saveAllAction"/>

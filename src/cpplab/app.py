@@ -8,14 +8,14 @@ from PyQt6 import uic
 from PyQt6.QtWidgets import (
     QMainWindow, QFileDialog, QMessageBox, QWidget, QPlainTextEdit, QComboBox, QLabel
 )
-from PyQt6.QtCore import QThread, pyqtSignal, QStandardPaths
+from PyQt6.QtCore import QThread, pyqtSignal, QObject, pyqtSlot, QStandardPaths
 from PyQt6.QtGui import QFont
 from typing import Optional
 from . import __version__
 from .core.project_config import ProjectConfig, create_new_project
 from .core.builder import (
     build_project, run_executable, BuildResult, get_executable_path,
-    build_single_file, run_single_file
+    build_single_file, run_single_file, check_project, check_single_file
 )
 from .core.toolchains import get_toolchains, select_toolchain, get_app_root
 from .widgets.code_editor import CodeEditor
@@ -26,17 +26,48 @@ from .settings import AppSettings, load_settings, save_settings
 from .settings_dialog import SettingsDialog
 
 
-class BuildThread(QThread):
+class BuildWorker(QObject):
+    """Worker that runs build/check operations in a background thread."""
     
-    build_finished = pyqtSignal(object)
+    started = pyqtSignal()
+    finished = pyqtSignal(object)  # BuildResult
+    error = pyqtSignal(str)
     
-    def __init__(self, project_config: ProjectConfig):
+    def __init__(self, toolchains, project_config: Optional[ProjectConfig] = None,
+                 source_path: Optional[Path] = None, force_rebuild: bool = False,
+                 check_only: bool = False):
         super().__init__()
+        self.toolchains = toolchains
         self.project_config = project_config
+        self.source_path = source_path
+        self.force_rebuild = force_rebuild
+        self.check_only = check_only
     
+    @pyqtSlot()
     def run(self):
-        result = build_project(self.project_config, get_toolchains())
-        self.build_finished.emit(result)
+        """Execute the build/check operation."""
+        try:
+            self.started.emit()
+            
+            result = None
+            if self.check_only:
+                if self.project_config is not None:
+                    result = check_project(self.project_config, self.toolchains)
+                elif self.source_path is not None:
+                    result = check_single_file(self.source_path, self.toolchains)
+            else:
+                if self.project_config is not None:
+                    result = build_project(self.project_config, self.toolchains, self.force_rebuild)
+                elif self.source_path is not None:
+                    result = build_single_file(self.source_path, self.toolchains)
+            
+            if result:
+                self.finished.emit(result)
+            else:
+                self.error.emit("Build operation returned no result")
+                
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class MainWindow(QMainWindow):
@@ -46,10 +77,13 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.current_project: Optional[ProjectConfig] = None
         self.toolchains = get_toolchains()
-        self.build_thread: Optional[BuildThread] = None
         self.open_editors: dict[str, CodeEditor] = {}  # file_path -> editor
         self.standalone_files: set[Path] = set()  # Track standalone files
-        self._build_and_run_mode = False  # Track if build is part of build-and-run
+        
+        # Async build state
+        self.build_in_progress = False
+        self.current_build_thread: Optional[QThread] = None
+        self._pending_run_after_build = False
         
         # Load settings
         self.settings = load_settings()
@@ -99,6 +133,10 @@ class MainWindow(QMainWindow):
             layout = build_tab.layout()
             if layout:
                 layout.addWidget(self.output_panel)
+        
+        # Add build status label to status bar
+        self.statusBuildLabel = QLabel("Ready")
+        self.statusbar.addPermanentWidget(self.statusBuildLabel)
         
         # Close the placeholder tab if it exists
         if self.editorTabWidget.count() > 0:
@@ -656,90 +694,69 @@ int main() {
     
     # ========== Build & Run Integration ==========
     
-    def append_build_output(self, text: str):
-        """Append text to build output panel."""
-        self.output_panel.append_output(text)
-    
-    def on_build_project(self):
-        """Build current project or standalone file."""
-        # Check toolchains
-        if not self.toolchains:
-            QMessageBox.warning(
-                self,
-                "Toolchains Not Available",
-                "MinGW toolchains are not installed. Please install toolchains to build."
-            )
+    def start_build_task(self, *, project_config: Optional[ProjectConfig] = None,
+                         source_path: Optional[Path] = None, force_rebuild: bool = False,
+                         check_only: bool = False) -> None:
+        """Start a background build/check task if none is running."""
+        if self.build_in_progress:
+            QMessageBox.information(self, "Build In Progress", 
+                                   "A build is already running. Please wait for it to complete.")
             return
         
         # Save all files before building
-        self.on_save_all()
+        if not check_only:
+            self.on_save_all()
         
-        # Clear output and update status
+        # Create worker and thread
+        thread = QThread(self)
+        worker = BuildWorker(
+            toolchains=self.toolchains,
+            project_config=project_config,
+            source_path=source_path,
+            force_rebuild=force_rebuild,
+            check_only=check_only
+        )
+        worker.moveToThread(thread)
+        
+        # Connect signals
+        thread.started.connect(worker.run)
+        worker.started.connect(self.on_build_started)
+        worker.finished.connect(self.on_build_finished)
+        worker.error.connect(self.on_build_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        
+        # Store thread reference and start
+        self.current_build_thread = thread
+        self.build_in_progress = True
+        thread.start()
+    
+    @pyqtSlot()
+    def on_build_started(self):
+        """Handle build start - update UI to show build in progress."""
+        self.statusBuildLabel.setText("Building...")
+        self.buildProjectAction.setEnabled(False)
+        self.buildAndRunAction.setEnabled(False)
+        self.runProjectAction.setEnabled(False)
         self.output_panel.clear_output()
         self.output_panel.append_output("=== Build Started ===\n")
-        
-        if hasattr(self, 'statusBuildLabel'):
-            self.statusBuildLabel.setText("Building...")
-        
-        # Determine build mode
-        if self.current_project:
-            # Project mode
-            self.build_thread = BuildThread(self.current_project)
-            if self._build_and_run_mode:
-                self.build_thread.build_finished.connect(self._on_build_and_run_finished)
-                self._build_and_run_mode = False
-            else:
-                self.build_thread.build_finished.connect(self._on_build_finished)
-            self.build_thread.start()
-        else:
-            # Standalone mode
-            editor = self.current_editor()
-            if not editor or not editor.file_path:
-                QMessageBox.warning(self, "No Source File", "Please open a source file to build.")
-                if hasattr(self, 'statusBuildLabel'):
-                    self.statusBuildLabel.setText("Idle")
-                return
-            
-            source_path = Path(editor.file_path)
-            
-            # Build in background thread
-            from PyQt6.QtCore import QThread
-            
-            class StandaloneBuildThread(QThread):
-                build_finished = pyqtSignal(object)
-                
-                def __init__(self, path, toolchains, standard_override, toolchain_preference):
-                    super().__init__()
-                    self.source_path = path
-                    self.toolchains = toolchains
-                    self.standard_override = standard_override
-                    self.toolchain_preference = toolchain_preference
-                
-                def run(self):
-                    result = build_single_file(
-                        self.source_path, 
-                        self.toolchains, 
-                        standard_override=self.standard_override,
-                        toolchain_preference=self.toolchain_preference
-                    )
-                    self.build_finished.emit(result)
-            
-            self.build_thread = StandaloneBuildThread(
-                source_path, 
-                self.toolchains,
-                self.standalone_standard,
-                self.standalone_toolchain_preference
-            )
-            if self._build_and_run_mode:
-                self.build_thread.build_finished.connect(self._on_build_and_run_finished)
-                self._build_and_run_mode = False
-            else:
-                self.build_thread.build_finished.connect(self._on_build_finished)
-            self.build_thread.start()
+        self.outputDockWidget.setVisible(True)
+        self.outputTabWidget.setCurrentIndex(0)  # Switch to Build tab
     
-    def _on_build_finished(self, result: BuildResult):
-        """Handle build completion."""
-        self.output_panel.append_output(f"\nCommand: {' '.join(result.command)}\n")
+    @pyqtSlot(object)
+    def on_build_finished(self, result: BuildResult):
+        """Handle build completion - update UI with results."""
+        # Re-enable actions
+        self.buildProjectAction.setEnabled(True)
+        self.buildAndRunAction.setEnabled(True)
+        self.runProjectAction.setEnabled(True)
+        self.build_in_progress = False
+        self.current_build_thread = None
+        
+        # Append output to build panel
+        if result.command:
+            self.output_panel.append_output(f"\nCommand: {' '.join(result.command)}\n")
         
         if result.stdout:
             self.output_panel.append_output("\n--- Standard Output ---\n")
@@ -749,161 +766,138 @@ int main() {
             self.output_panel.append_output("\n--- Standard Error ---\n")
             self.output_panel.append_output(result.stderr)
         
+        # Update status bar
         if result.success:
             self.output_panel.append_output("\n=== Build Succeeded ===")
-            if hasattr(self, 'statusBuildLabel'):
-                self.statusBuildLabel.setText("Build succeeded")
-            
-            # Clear problems table
-            if hasattr(self, 'problemsTableWidget'):
-                self.problemsTableWidget.setRowCount(0)
+            msg = "Build succeeded"
         else:
             self.output_panel.append_output("\n=== Build Failed ===")
-            if hasattr(self, 'statusBuildLabel'):
-                self.statusBuildLabel.setText("Build failed")
-            
-            # TODO: Parse stderr into problems table
-            # For v1, just leave it empty or add a single row
-    
-    def on_run_project(self):
-        """Run project executable or standalone file."""
-        # Check toolchains
-        if not self.toolchains:
-            QMessageBox.warning(
-                self,
-                "Toolchains Not Available",
-                "MinGW toolchains are not installed. Please install toolchains to run."
-            )
-            return
+            msg = "Build failed"
         
-        # Determine run mode
+        if hasattr(result, "elapsed_ms") and self.settings.show_build_elapsed:
+            msg += f" in {result.elapsed_ms:.0f} ms"
+        
+        if result.skipped:
+            msg = "Build skipped (up to date)"
+        
+        self.statusBuildLabel.setText(msg)
+        
+        # Clear problems table on success
+        if result.success and hasattr(self, 'problemsTableWidget'):
+            self.problemsTableWidget.setRowCount(0)
+        
+        # Handle pending run after build
+        if result.success and self._pending_run_after_build:
+            self._pending_run_after_build = False
+            self.run_current()
+    
+    @pyqtSlot(str)
+    def on_build_error(self, message: str):
+        """Handle build error."""
+        self.build_in_progress = False
+        self.current_build_thread = None
+        self.buildProjectAction.setEnabled(True)
+        self.buildAndRunAction.setEnabled(True)
+        self.runProjectAction.setEnabled(True)
+        self.statusBuildLabel.setText("Build error")
+        QMessageBox.critical(self, "Build Error", message)
+    
+    def build_current(self, force_rebuild: bool = False, check_only: bool = False):
+        """Build current project or standalone file."""
+        if self.current_project is not None:
+            self.start_build_task(
+                project_config=self.current_project,
+                force_rebuild=force_rebuild,
+                check_only=check_only
+            )
+        else:
+            # Standalone file mode
+            editor = self.current_editor()
+            if not editor or not editor.file_path:
+                QMessageBox.warning(self, "No Source File", 
+                                   "Please open a source file to build.")
+                return
+            
+            self.start_build_task(
+                source_path=Path(editor.file_path),
+                force_rebuild=force_rebuild,
+                check_only=check_only
+            )
+    
+    def run_current(self):
+        """Run current project or standalone file executable."""
         if self.current_project:
-            # Project mode
             exe_path = get_executable_path(self.current_project)
             if not exe_path.exists():
                 reply = QMessageBox.question(
-                    self,
-                    "No Executable",
+                    self, "No Executable",
                     "Project has not been built yet. Build now?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
-                
                 if reply == QMessageBox.StandardButton.Yes:
-                    self.on_build_and_run()
+                    self._pending_run_after_build = True
+                    self.build_current()
                 return
             
-            # Run executable
-            if hasattr(self, 'statusBuildLabel'):
-                self.statusBuildLabel.setText("Running...")
-            
+            # Run executable (non-blocking)
+            self.statusBuildLabel.setText("Running...")
             self.output_panel.append_output("\n=== Running Executable ===\n")
-            
-            try:
-                result = run_executable(self.current_project, self.toolchains)
-                
-                self.output_panel.append_output(f"Command: {' '.join(result.command)}\n")
-                
-                if result.stdout:
-                    self.output_panel.append_output("\n--- Program Output ---\n")
-                    self.output_panel.append_output(result.stdout)
-                
-                if result.stderr:
-                    self.output_panel.append_output("\n--- Error Output ---\n")
-                    self.output_panel.append_output(result.stderr)
-                
-                if result.success:
-                    self.output_panel.append_output("\n=== Execution Completed ===")
-                    if hasattr(self, 'statusBuildLabel'):
-                        self.statusBuildLabel.setText("Execution completed")
-                else:
-                    self.output_panel.append_output("\n=== Execution Failed ===")
-                    if hasattr(self, 'statusBuildLabel'):
-                        self.statusBuildLabel.setText("Execution failed")
-            
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to run project:\n{str(e)}")
-                if hasattr(self, 'statusBuildLabel'):
-                    self.statusBuildLabel.setText("Execution error")
+            run_executable(self.current_project, self.toolchains)
+            self.statusBuildLabel.setText("Program started")
         else:
-            # Standalone mode
+            # Standalone file
             editor = self.current_editor()
             if not editor or not editor.file_path:
-                QMessageBox.warning(self, "No Source File", "Please open a source file to run.")
                 return
             
             source_path = Path(editor.file_path)
-            
-            # Check if built
-            from .core.builder import project_config_for_single_file
-            config = project_config_for_single_file(
-                source_path, 
-                standard_override=self.standalone_standard,
-                toolchain_preference=self.standalone_toolchain_preference
-            )
-            exe_path = get_executable_path(config)
+            exe_path = source_path.parent / "build" / f"{source_path.stem}.exe"
             
             if not exe_path.exists():
                 reply = QMessageBox.question(
-                    self,
-                    "No Executable",
+                    self, "No Executable",
                     "File has not been built yet. Build now?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
-                
                 if reply == QMessageBox.StandardButton.Yes:
-                    self.on_build_and_run()
+                    self._pending_run_after_build = True
+                    self.build_current()
                 return
             
-            # Run executable
-            if hasattr(self, 'statusBuildLabel'):
-                self.statusBuildLabel.setText("Running...")
-            
+            # Run executable (non-blocking)
+            self.statusBuildLabel.setText("Running...")
             self.output_panel.append_output("\n=== Running Executable ===\n")
-            
-            try:
-                result = run_single_file(
-                    source_path, 
-                    self.toolchains,
-                    standard_override=self.standalone_standard,
-                    toolchain_preference=self.standalone_toolchain_preference
-                )
-                
-                self.output_panel.append_output(f"Command: {' '.join(result.command)}\n")
-                
-                if result.stdout:
-                    self.output_panel.append_output("\n--- Program Output ---\n")
-                    self.output_panel.append_output(result.stdout)
-                
-                if result.stderr:
-                    self.output_panel.append_output("\n--- Error Output ---\n")
-                    self.output_panel.append_output(result.stderr)
-                
-                if result.success:
-                    self.output_panel.append_output("\n=== Execution Completed ===")
-                    if hasattr(self, 'statusBuildLabel'):
-                        self.statusBuildLabel.setText("Execution completed")
-                else:
-                    self.output_panel.append_output("\n=== Execution Failed ===")
-                    if hasattr(self, 'statusBuildLabel'):
-                        self.statusBuildLabel.setText("Execution failed")
-            
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to run file:\n{str(e)}")
-                if hasattr(self, 'statusBuildLabel'):
-                    self.statusBuildLabel.setText("Execution error")
+            run_single_file(source_path, self.toolchains)
+            self.statusBuildLabel.setText("Program started")
+    
+    def append_build_output(self, text: str):
+        """Append text to build output panel."""
+        self.output_panel.append_output(text)
+    
+    def on_build_project(self):
+        """Build current project or standalone file."""
+        if not self.toolchains:
+            QMessageBox.warning(self, "Toolchains Not Available",
+                              "MinGW toolchains are not installed. Please install toolchains to build.")
+            return
+        self.build_current()
+    
+    def on_run_project(self):
+        """Run project executable or standalone file."""
+        if not self.toolchains:
+            QMessageBox.warning(self, "Toolchains Not Available",
+                              "MinGW toolchains are not installed. Please install toolchains to run.")
+            return
+        self.run_current()
     
     def on_build_and_run(self):
         """Build and run current project or standalone file."""
-        # Just trigger build with build-and-run flag
-        self._build_and_run_mode = True
-        self.on_build_project()
-    
-    def _on_build_and_run_finished(self, result: BuildResult):
-        """Handle build completion and run if successful."""
-        self._on_build_finished(result)
-        
-        if result.success:
-            self.on_run_project()
+        if not self.toolchains:
+            QMessageBox.warning(self, "Toolchains Not Available",
+                              "MinGW toolchains are not installed. Please install toolchains.")
+            return
+        self._pending_run_after_build = True
+        self.build_current()
     
     def on_clean_project(self):
         """Clean project build directory."""
@@ -1073,4 +1067,18 @@ int main() {
         self.runProjectAction.setEnabled(can_build_run)
         self.buildAndRunAction.setEnabled(can_build_run)
         self.cleanProjectAction.setEnabled(has_project)  # Only for projects
-
+    
+    def closeEvent(self, event):
+        """Handle application close event."""
+        if self.build_in_progress:
+            reply = QMessageBox.question(
+                self, "Build in progress",
+                "A build is currently running. Do you really want to exit?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.No:
+                event.ignore()
+                return
+        
+        super().closeEvent(event)
