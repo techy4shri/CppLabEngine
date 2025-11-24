@@ -94,7 +94,7 @@ if test_dir.exists():
     shutil.rmtree(test_dir)
     print("✓ Test directory removed")
 
-print("\n✅ Integration test complete!")
+print("\n[x] Integration test complete!")
 print("\nSUMMARY:")
 print("- Feature detection: WORKING")
 print("- Graphics library linking: WORKING")

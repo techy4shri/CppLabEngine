@@ -244,7 +244,7 @@
        </property>
        <widget class="QWidget" name="buildTab">
         <attribute name="title">
-         <string>Build</string>
+         <string>Output</string>
         </attribute>
         <layout class="QVBoxLayout" name="buildTabLayout">
          <property name="spacing">
@@ -274,7 +274,7 @@
             <bool>true</bool>
            </property>
            <property name="placeholderText">
-            <string>Build and compiler output will appear here.</string>
+            <string>Compilation and program output will appear here.</string>
            </property>
           </widget>
          </item>
@@ -510,7 +510,7 @@
   </action>
   <action name="buildProjectAction">
    <property name="text">
-    <string>&amp;Build</string>
+    <string>&amp;Compile</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+B</string>
@@ -526,7 +526,7 @@
   </action>
   <action name="buildAndRunAction">
    <property name="text">
-    <string>Build &amp;&amp; Run</string>
+    <string>Compile &amp;&amp; Run</string>
    </property>
    <property name="shortcut">
     <string>F5</string>

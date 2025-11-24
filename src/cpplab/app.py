@@ -42,6 +42,11 @@ class BuildWorker(QObject):
         self.source_path = source_path
         self.force_rebuild = force_rebuild
         self.check_only = check_only
+        self._should_stop = False
+    
+    def stop(self):
+        """Request the worker to stop."""
+        self._should_stop = True
     
     @pyqtSlot()
     def run(self):
@@ -83,6 +88,7 @@ class MainWindow(QMainWindow):
         # Async build state
         self.build_in_progress = False
         self.current_build_thread: Optional[QThread] = None
+        self.current_build_worker: Optional[BuildWorker] = None
         self._pending_run_after_build = False
         
         # Load settings
@@ -699,9 +705,29 @@ int main() {
                          check_only: bool = False) -> None:
         """Start a background build/check task if none is running."""
         if self.build_in_progress:
-            QMessageBox.information(self, "Build In Progress", 
-                                   "A build is already running. Please wait for it to complete.")
-            return
+            reply = QMessageBox.question(
+                self, "Compilation In Progress", 
+                "A compilation is already running. Do you want to terminate it and start a new one?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                # Terminate the current build
+                if self.current_build_worker:
+                    self.current_build_worker.stop()
+                if self.current_build_thread:
+                    self.current_build_thread.quit()
+                    self.current_build_thread.wait(3000)  # Wait up to 3 seconds
+                    if self.current_build_thread.isRunning():
+                        self.current_build_thread.terminate()
+                        self.current_build_thread.wait()
+                self.build_in_progress = False
+                self.current_build_thread = None
+                self.current_build_worker = None
+                self.statusBuildLabel.setText("Compilation terminated")
+                self.output_panel.append_output("\n=== Compilation Terminated by User ===\n")
+            else:
+                return
         
         # Save all files before building
         if not check_only:
@@ -727,20 +753,21 @@ int main() {
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
         
-        # Store thread reference and start
+        # Store thread and worker references
         self.current_build_thread = thread
+        self.current_build_worker = worker
         self.build_in_progress = True
         thread.start()
     
     @pyqtSlot()
     def on_build_started(self):
         """Handle build start - update UI to show build in progress."""
-        self.statusBuildLabel.setText("Building...")
-        self.buildProjectAction.setEnabled(False)
+        self.statusBuildLabel.setText("Compiling...")
+        self.buildProjectAction.setEnabled(True)  # Keep enabled to allow termination
         self.buildAndRunAction.setEnabled(False)
         self.runProjectAction.setEnabled(False)
         self.output_panel.clear_output()
-        self.output_panel.append_output("=== Build Started ===\n")
+        self.output_panel.append_output("=== Compilation Started ===\n")
         self.outputDockWidget.setVisible(True)
         self.outputTabWidget.setCurrentIndex(0)  # Switch to Build tab
     
@@ -753,6 +780,7 @@ int main() {
         self.runProjectAction.setEnabled(True)
         self.build_in_progress = False
         self.current_build_thread = None
+        self.current_build_worker = None
         
         # Append output to build panel
         if result.command:
@@ -768,17 +796,17 @@ int main() {
         
         # Update status bar
         if result.success:
-            self.output_panel.append_output("\n=== Build Succeeded ===")
-            msg = "Build succeeded"
+            self.output_panel.append_output("\n=== Compilation Succeeded ===")
+            msg = "Compilation succeeded"
         else:
-            self.output_panel.append_output("\n=== Build Failed ===")
-            msg = "Build failed"
+            self.output_panel.append_output("\n=== Compilation Failed ===")
+            msg = "Compilation failed"
         
         if hasattr(result, "elapsed_ms") and self.settings.show_build_elapsed:
             msg += f" in {result.elapsed_ms:.0f} ms"
         
         if result.skipped:
-            msg = "Build skipped (up to date)"
+            msg = "Compilation skipped (up to date)"
         
         self.statusBuildLabel.setText(msg)
         
@@ -796,11 +824,12 @@ int main() {
         """Handle build error."""
         self.build_in_progress = False
         self.current_build_thread = None
+        self.current_build_worker = None
         self.buildProjectAction.setEnabled(True)
         self.buildAndRunAction.setEnabled(True)
         self.runProjectAction.setEnabled(True)
-        self.statusBuildLabel.setText("Build error")
-        QMessageBox.critical(self, "Build Error", message)
+        self.statusBuildLabel.setText("Compilation error")
+        QMessageBox.critical(self, "Compilation Error", message)
     
     def build_current(self, force_rebuild: bool = False, check_only: bool = False):
         """Build current project or standalone file."""
@@ -831,7 +860,7 @@ int main() {
             if not exe_path.exists():
                 reply = QMessageBox.question(
                     self, "No Executable",
-                    "Project has not been built yet. Build now?",
+                    "Project has not been compiled yet. Compile now?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
                 if reply == QMessageBox.StandardButton.Yes:
@@ -856,7 +885,7 @@ int main() {
             if not exe_path.exists():
                 reply = QMessageBox.question(
                     self, "No Executable",
-                    "File has not been built yet. Build now?",
+                    "File has not been compiled yet. Compile now?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
                 if reply == QMessageBox.StandardButton.Yes:
@@ -1072,13 +1101,24 @@ int main() {
         """Handle application close event."""
         if self.build_in_progress:
             reply = QMessageBox.question(
-                self, "Build in progress",
-                "A build is currently running. Do you really want to exit?",
+                self, "Compilation in progress",
+                "A compilation is currently running. Do you really want to exit?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )
             if reply == QMessageBox.StandardButton.No:
                 event.ignore()
                 return
+            
+            # Terminate the build thread gracefully
+            if self.current_build_worker:
+                self.current_build_worker.stop()
+            if self.current_build_thread:
+                self.current_build_thread.quit()
+                self.current_build_thread.wait(2000)  # Wait up to 2 seconds
+                if self.current_build_thread.isRunning():
+                    self.current_build_thread.terminate()
+                    self.current_build_thread.wait()
         
+        event.accept()
         super().closeEvent(event)
