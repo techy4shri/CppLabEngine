@@ -19,7 +19,7 @@ First public release of CppLab IDE - an offline C/C++ development environment fo
 - Project explorer with file tree navigation
 - Build output panel with error/warning display
 - Toolchain selector (MinGW 32-bit / 64-bit)
-- C/C++ standard selector (C11, C++11/14/17/20)
+- C/C++ standard selector (C99/11/17/18/23, C++11/14/17/20/23)
 
 **Graphics Support:**
 - Full graphics.h library support via WinBGIm

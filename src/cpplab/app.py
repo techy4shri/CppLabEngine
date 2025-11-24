@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QFileDialog, QMessageBox, QWidget, QPlainTextEdit, QComboBox, QLabel
 )
 from PyQt6.QtCore import QThread, pyqtSignal, QStandardPaths
+from PyQt6.QtGui import QFont
 from typing import Optional
 from . import __version__
 from .core.project_config import ProjectConfig, create_new_project
@@ -21,6 +22,8 @@ from .widgets.code_editor import CodeEditor
 from .widgets.project_explorer import ProjectExplorer
 from .widgets.output_panel import OutputPanel
 from .dialogs import NewProjectDialog
+from .settings import AppSettings, load_settings, save_settings
+from .settings_dialog import SettingsDialog
 
 
 class BuildThread(QThread):
@@ -48,6 +51,9 @@ class MainWindow(QMainWindow):
         self.standalone_files: set[Path] = set()  # Track standalone files
         self._build_and_run_mode = False  # Track if build is part of build-and-run
         
+        # Load settings
+        self.settings = load_settings()
+        
         # Standalone settings
         self.standalone_toolchain_preference: str = "auto"
         self.standalone_standard: str = ""  # Will be set based on file type
@@ -66,6 +72,9 @@ class MainWindow(QMainWindow):
         # Initialize toolchains and check availability
         self._check_toolchains()
         
+        # Apply initial settings
+        self.apply_settings()
+        
         self._update_ui_state()
     
     def _setup_widgets(self):
@@ -80,14 +89,14 @@ class MainWindow(QMainWindow):
             if layout:
                 layout.addWidget(self.project_explorer)
         
-        # Replace build output text with custom OutputPanel
+        # Replace build output text with custom OutputPanel in the Build tab
         self.output_panel = OutputPanel()
-        output_dock_content = self.outputDockWidget.findChild(QWidget, "outputDockContent")
-        if output_dock_content:
-            build_output_text = output_dock_content.findChild(QWidget, "buildOutputTextEdit")
+        build_tab = self.outputDockWidget.findChild(QWidget, "buildTab")
+        if build_tab:
+            build_output_text = build_tab.findChild(QWidget, "buildOutputTextEdit")
             if build_output_text:
                 build_output_text.deleteLater()
-            layout = output_dock_content.layout()
+            layout = build_tab.layout()
             if layout:
                 layout.addWidget(self.output_panel)
         
@@ -130,11 +139,14 @@ class MainWindow(QMainWindow):
         self.standardComboBox.clear()
         
         if language == "c":
-            self.standardComboBox.addItem("C11", "c11")
+            self.standardComboBox.addItem("C23", "c23")
+            self.standardComboBox.addItem("C18", "c18")
             self.standardComboBox.addItem("C17", "c17")
+            self.standardComboBox.addItem("C11", "c11")
             self.standardComboBox.addItem("C99", "c99")
-            default = current_standard or "c11"
+            default = current_standard or "c17"
         else:  # cpp
+            self.standardComboBox.addItem("C++23", "c++23")
             self.standardComboBox.addItem("C++20", "c++20")
             self.standardComboBox.addItem("C++17", "c++17")
             self.standardComboBox.addItem("C++14", "c++14")
@@ -188,9 +200,6 @@ class MainWindow(QMainWindow):
         )
         self.viewOutputDockAction.triggered.connect(
             lambda: self.outputDockWidget.setVisible(not self.outputDockWidget.isVisible())
-        )
-        self.viewProblemsDockAction.triggered.connect(
-            lambda: self.problemsDockWidget.setVisible(not self.problemsDockWidget.isVisible())
         )
         
         # Build menu
@@ -928,8 +937,12 @@ int main() {
     # ========== Tools & Help Menu Actions ==========
     
     def _on_settings(self):
-        # TODO: Implement settings dialog
-        QMessageBox.information(self, "Settings", "Settings dialog not yet implemented.")
+        """Open settings dialog and apply changes if accepted."""
+        dialog = SettingsDialog(self.settings, self)
+        if dialog.exec():
+            # Settings were modified by the dialog
+            save_settings(self.settings)
+            self.apply_settings()
     
     def _on_offline_docs(self):
         """Open offline documentation in default browser."""
@@ -953,7 +966,9 @@ int main() {
             "<p>Offline C/C++ IDE with bundled MinGW 32/64, graphics.h, and OpenMP support.</p>"
             "<p><b>Features:</b></p>"
             "<ul>"
-            "<li>Console and graphics projects (C11, C++11/14/17/20)</li>"
+            "<li>Console and graphics projects</li>"
+            "<li>C standards: C99, C11, C17, C18, C23</li>"
+            "<li>C++ standards: C++11, C++14, C++17, C++20, C++23</li>"
             "<li>graphics.h via 32-bit MinGW with WinBGIm</li>"
             "<li>OpenMP parallel computing support</li>"
             "<li>Standalone source file mode</li>"
@@ -963,6 +978,71 @@ int main() {
         )
     
     # ========== UI State Management ==========
+    
+    def apply_settings(self):
+        """Apply settings to the UI."""
+        # Apply theme stylesheet
+        if self.settings.theme == "sky_blue":
+            stylesheet = """
+            QMainWindow {
+                background-color: #f0f4f8;
+            }
+            QMenuBar {
+                background-color: #e8f0f7;
+                color: #1a1a1a;
+                border-bottom: 1px solid #b8d4e8;
+            }
+            QMenuBar::item:selected {
+                background-color: #d0e4f5;
+            }
+            QToolBar {
+                background-color: #e8f0f7;
+                border: none;
+                spacing: 3px;
+            }
+            QDockWidget {
+                titlebar-close-icon: url(close.png);
+                titlebar-normal-icon: url(undock.png);
+            }
+            QDockWidget::title {
+                background-color: #d8e8f5;
+                color: #1a1a1a;
+                padding: 4px;
+                border: 1px solid #b8d4e8;
+            }
+            QTabWidget::pane {
+                border: 1px solid #b8d4e8;
+                background-color: white;
+            }
+            QTabBar::tab {
+                background-color: #e8f0f7;
+                color: #1a1a1a;
+                padding: 6px 12px;
+                border: 1px solid #b8d4e8;
+                border-bottom: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }
+            QTabBar::tab:selected {
+                background-color: white;
+                border-bottom: 1px solid white;
+            }
+            QTabBar::tab:hover {
+                background-color: #d0e4f5;
+            }
+            """
+            self.setStyleSheet(stylesheet)
+        else:
+            # Classic theme - use default styling
+            self.setStyleSheet("")
+        
+        # Apply font settings to build output
+        font = QFont("Consolas", self.settings.build_output_font_size)
+        font.setBold(self.settings.build_output_bold)
+        self.output_panel.setFont(font)
+        
+        # Store build-related settings for use in build operations
+        # (accessed later in build methods)
     
     def _update_ui_state(self):
         """Update UI state based on current context."""
