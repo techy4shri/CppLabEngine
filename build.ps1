@@ -4,8 +4,7 @@
 $ErrorActionPreference = "Stop"
 
 $VERSION = "0.1.0"
-$APP_NAME = "CppLabIDE"
-$DIST_DIR = "dist"
+$APP_NAME = CppLabEngine$DIST_DIR = "dist"
 $BUILD_DIR = "build"
 $ZIP_NAME = "$APP_NAME-v$VERSION-win64.zip"
 

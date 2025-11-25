@@ -122,13 +122,13 @@ def test_openmp_project_command(fake_toolchains):
 
 
 def test_single_file_c_config():
-    """Standalone .c file creates C11 config."""
+    """Standalone .c file creates C17 config."""
     source_path = Path("/fake/test.c")
     
     config = project_config_for_single_file(source_path)
     
     assert config.language == "c"
-    assert config.standard == "c11"
+    assert config.standard == "c17"
     assert config.name == "test"
 
 

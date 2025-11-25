@@ -8,8 +8,8 @@ import subprocess
 import zipfile
 from pathlib import Path
 
-VERSION = "0.1.0"
-APP_NAME = "CppLabIDE"
+VERSION = "1.0.0"
+APP_NAME = "CppLabEngine"
 DIST_DIR = Path("dist")
 BUILD_DIR = Path("build")
 ROOT_DIR = Path(__file__).parent.parent
