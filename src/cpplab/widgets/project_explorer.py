@@ -32,7 +32,7 @@ class ProjectExplorer(QTreeWidget):
             root_item.addChild(file_item)
     
     def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int):
-        file_rel_path = item.data(0, 0x0100)
+        file_rel_path = item.data(0, 0x0100) #tiny bug for path fixed, this could've been str or Path
         if file_rel_path and self.project_config:
             # Normalize to Path (handles Path or str)
             rel = Path(file_rel_path)

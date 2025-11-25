@@ -19,9 +19,10 @@ class Diagnostic:
 # Regex to match GCC/MinGW output format:
 # filename:line:column: error: message
 # filename:line:column: warning: message
+# filename:line:column: fatal error: message
 # filename:line:column: note: message
 GCC_LINE_RE = re.compile(
-    r"^(?P<file>.+?):(?P<line>\d+):(?P<col>\d+):\s*(?P<kind>warning|error|note):\s*(?P<msg>.+)$"
+    r"^(?P<file>.+?):(?P<line>\d+):(?P<col>\d+):\s*(?P<kind>warning|error|fatal error|note):\s*(?P<msg>.+)$"
 )
 
 
@@ -52,12 +53,22 @@ def parse_gcc_output(text: str) -> List[Diagnostic]:
             kind = match.group('kind')
             msg = match.group('msg').strip()
             
+            # Map kind to severity
+            if kind in ('error', 'fatal error'):
+                severity = 'error'
+            elif kind == 'warning':
+                severity = 'warning'
+            elif kind == 'note':
+                severity = 'note'
+            else:
+                severity = 'error'  # Default fallback
+            
             diagnostic = Diagnostic(
                 file=file_path,
                 line=line_num,
                 column=col_num,
                 message=msg,
-                severity=kind
+                severity=severity
             )
             diagnostics.append(diagnostic)
     

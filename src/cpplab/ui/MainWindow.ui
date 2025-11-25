@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>CppLab IDE</string>
+   <string>CppLabEngine</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="centralLayout">
@@ -444,7 +444,7 @@
   </action>
   <action name="aboutAction">
    <property name="text">
-    <string>&amp;About CppLab IDE</string>
+    <string>&amp;About CppLabEngine</string>
    </property>
   </action>
   <action name="actionVisit_the_repo">

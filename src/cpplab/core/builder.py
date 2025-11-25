@@ -26,12 +26,15 @@ def get_executable_path(config: ProjectConfig) -> Path:
     # For standalone files (single file with just a filename, no path), 
     # put exe directly in source directory
     # For projects (multiple files or files with paths), use build subfolder
-    if len(config.files) == 1 and not Path(config.files[0]).is_absolute() and "/" not in config.files[0] and "\\" not in config.files[0]:
-        # Standalone file - no build folder
-        return config.root_path / f"{config.name}.exe"
-    else:
-        # Project - use build folder
-        return config.root_path / "build" / f"{config.name}.exe"
+    if len(config.files) == 1:
+        # Convert to string for path checking
+        file_str = str(config.files[0])
+        if not Path(file_str).is_absolute() and "/" not in file_str and "\\" not in file_str:
+            # Standalone file - no build folder
+            return config.root_path / f"{config.name}.exe"
+    
+    # Project - use build folder
+    return config.root_path / "build" / f"{config.name}.exe"
 
 
 def needs_rebuild(config: ProjectConfig, exe_path: Path) -> bool:

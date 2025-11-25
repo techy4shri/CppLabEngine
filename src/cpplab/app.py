@@ -104,6 +104,11 @@ class MainWindow(QMainWindow):
         self.current_build_worker: Optional[BuildWorker] = None
         self._pending_run_after_build = False
         
+        # Diagnostic counts for status bar
+        self.last_error_count = 0
+        self.last_warning_count = 0
+        self.last_note_count = 0
+        
         # Load settings
         self.settings = load_settings()
         
@@ -827,20 +832,25 @@ int main() {
         self.current_build_thread = None
         self.current_build_worker = None
         
-        # Parse and display diagnostics in Problems table
+        # Parse and display diagnostics in Problems table (sets counts)
         self.update_problems_from_result(result)
         
-        # Update status bar
-        if result.success:
-            msg = "Compilation succeeded"
-        else:
-            msg = "Compilation failed"
-        
-        if hasattr(result, "elapsed_ms") and self.settings.show_build_elapsed:
-            msg += f" in {result.elapsed_ms:.0f} ms"
-        
+        # Build status message with error/warning counts
         if result.skipped:
             msg = "Compilation skipped (up to date)"
+        else:
+            msg = "Compilation succeeded" if result.success else "Compilation failed"
+            
+            # Add elapsed time if enabled
+            if hasattr(result, "elapsed_ms") and self.settings.show_build_elapsed and result.elapsed_ms > 0:
+                msg += f" in {result.elapsed_ms:.0f} ms"
+            
+            # Add error and warning counts
+            errors = getattr(self, "last_error_count", 0)
+            warnings = getattr(self, "last_warning_count", 0)
+            
+            msg += f" ({errors} error{'s' if errors != 1 else ''}"
+            msg += f", {warnings} warning{'s' if warnings != 1 else ''})"
         
         self.statusBuildLabel.setText(msg)
         
@@ -880,6 +890,11 @@ int main() {
         # Clear previous error highlights
         self.clear_error_highlights()
         
+        # Reset counts
+        self.last_error_count = 0
+        self.last_warning_count = 0
+        self.last_note_count = 0
+        
         if not result.stderr:
             return
         
@@ -889,6 +904,11 @@ int main() {
         if not diagnostics:
             return
         
+        # Compute counts by severity
+        self.last_error_count = sum(1 for d in diagnostics if d.severity == "error")
+        self.last_warning_count = sum(1 for d in diagnostics if d.severity == "warning")
+        self.last_note_count = sum(1 for d in diagnostics if d.severity == "note")
+        
         # Set table row count
         self.problemsTableWidget.setRowCount(len(diagnostics))
         
@@ -897,28 +917,30 @@ int main() {
             # Column 0: File (basename for display, full path in UserRole)
             file_item = QTableWidgetItem(diag.file.name)
             file_item.setData(Qt.ItemDataRole.UserRole, str(diag.file))
-            self.problemsTableWidget.setItem(i, 0, file_item)
             
             # Column 1: Line
             line_item = QTableWidgetItem(str(diag.line))
-            self.problemsTableWidget.setItem(i, 1, line_item)
             
             # Column 2: Column
             col_item = QTableWidgetItem(str(diag.column))
-            self.problemsTableWidget.setItem(i, 2, col_item)
             
             # Column 3: Message with severity prefix
             msg_item = QTableWidgetItem(f"[{diag.severity}] {diag.message}")
             
-            # Color code by severity
+            # Determine color by severity
+            color = None
             if diag.severity == 'error':
-                msg_item.setForeground(QColor(200, 0, 0))  # Red
+                color = QColor(200, 0, 0)  # Red
             elif diag.severity == 'warning':
-                msg_item.setForeground(QColor(200, 100, 0))  # Orange
-            else:  # note
-                msg_item.setForeground(QColor(100, 100, 200))  # Blue
+                color = QColor(180, 120, 0)  # Dark orange/yellow
+            elif diag.severity == 'note':
+                color = QColor(100, 100, 100)  # Grey
             
-            self.problemsTableWidget.setItem(i, 3, msg_item)
+            # Apply color to all columns in the row
+            for col, item in enumerate([file_item, line_item, col_item, msg_item]):
+                if color is not None:
+                    item.setForeground(color)
+                self.problemsTableWidget.setItem(i, col, item)
             
             # Highlight diagnostic in editor if file is open
             self.highlight_diagnostic_in_editor(diag)
@@ -1221,10 +1243,10 @@ int main() {
     def _on_about(self):
         """Show about dialog with GitHub wiki link."""
         msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("About CppLab IDE")
+        msg_box.setWindowTitle("About CppLabEngine")
         msg_box.setTextFormat(Qt.TextFormat.RichText)
         msg_box.setText(
-            f"<h2>CppLab IDE v{__version__}</h2>"
+            f"<h2>CppLabEngine v{__version__}</h2>"
             "<p>Offline C/C++ IDE with bundled MinGW 32/64, graphics.h, and OpenMP support.</p>"
             "<p><b>Features:</b></p>"
             "<ul>"

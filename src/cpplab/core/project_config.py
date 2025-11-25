@@ -7,7 +7,7 @@ from typing import Literal
 
 
 @dataclass
-class ProjectConfig:
+class ProjectConfig: #normalization for this to always be path bug fixed
     name: str
     root_path: Path
     language: Literal["c", "cpp"]
