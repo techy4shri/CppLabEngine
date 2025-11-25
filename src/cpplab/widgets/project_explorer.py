@@ -34,5 +34,7 @@ class ProjectExplorer(QTreeWidget):
     def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int):
         file_rel_path = item.data(0, 0x0100)
         if file_rel_path and self.project_config:
-            full_path = str(Path(self.project_config.path) / file_rel_path)
+            # Normalize to Path (handles Path or str)
+            rel = Path(file_rel_path)
+            full_path = str(self.project_config.root_path / rel)
             self.file_double_clicked.emit(full_path)

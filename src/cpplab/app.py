@@ -2,14 +2,17 @@
 
 import os
 import sys
+import shutil
+import subprocess
 import webbrowser
+import re
 from pathlib import Path
 from PyQt6 import uic
 from PyQt6.QtWidgets import (
-    QMainWindow, QFileDialog, QMessageBox, QWidget, QPlainTextEdit, QComboBox, QLabel
+    QMainWindow, QFileDialog, QMessageBox, QWidget, QPlainTextEdit, QComboBox, QLabel, QTableWidgetItem, QTextEdit
 )
-from PyQt6.QtCore import QThread, pyqtSignal, QObject, pyqtSlot, QStandardPaths
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import QThread, pyqtSignal, QObject, pyqtSlot, QStandardPaths, Qt
+from PyQt6.QtGui import QFont, QColor, QTextCursor, QTextCharFormat
 from typing import Optional
 from . import __version__
 from .core.project_config import ProjectConfig, create_new_project
@@ -18,9 +21,9 @@ from .core.builder import (
     build_single_file, run_single_file, check_project, check_single_file
 )
 from .core.toolchains import get_toolchains, select_toolchain, get_app_root
+from .core.diagnostics import parse_gcc_output, Diagnostic
 from .widgets.code_editor import CodeEditor
 from .widgets.project_explorer import ProjectExplorer
-from .widgets.output_panel import OutputPanel
 from .dialogs import NewProjectDialog
 from .settings import AppSettings, load_settings, save_settings
 from .settings_dialog import SettingsDialog
@@ -35,13 +38,17 @@ class BuildWorker(QObject):
     
     def __init__(self, toolchains, project_config: Optional[ProjectConfig] = None,
                  source_path: Optional[Path] = None, force_rebuild: bool = False,
-                 check_only: bool = False):
+                 check_only: bool = False, toolchain_preference: str = "mingw64",
+                 standard_override: Optional[str] = None, project_type: str = "console"):
         super().__init__()
         self.toolchains = toolchains
         self.project_config = project_config
         self.source_path = source_path
         self.force_rebuild = force_rebuild
         self.check_only = check_only
+        self.toolchain_preference = toolchain_preference
+        self.standard_override = standard_override
+        self.project_type = project_type
         self._should_stop = False
     
     def stop(self):
@@ -59,12 +66,18 @@ class BuildWorker(QObject):
                 if self.project_config is not None:
                     result = check_project(self.project_config, self.toolchains)
                 elif self.source_path is not None:
-                    result = check_single_file(self.source_path, self.toolchains)
+                    result = check_single_file(
+                        self.source_path, self.toolchains, 
+                        self.standard_override, self.toolchain_preference, self.project_type
+                    )
             else:
                 if self.project_config is not None:
                     result = build_project(self.project_config, self.toolchains, self.force_rebuild)
                 elif self.source_path is not None:
-                    result = build_single_file(self.source_path, self.toolchains)
+                    result = build_single_file(
+                        self.source_path, self.toolchains,
+                        self.standard_override, self.toolchain_preference, self.project_type
+                    )
             
             if result:
                 self.finished.emit(result)
@@ -95,8 +108,9 @@ class MainWindow(QMainWindow):
         self.settings = load_settings()
         
         # Standalone settings
-        self.standalone_toolchain_preference: str = "auto"
+        self.standalone_toolchain_preference: str = "mingw64"  # Default to 64-bit
         self.standalone_standard: str = ""  # Will be set based on file type
+        self.standalone_project_type: str = "console"  # console, graphics, or openmp
         
         # Load UI (works in both dev and frozen modes)
         if getattr(sys, 'frozen', False):
@@ -129,16 +143,12 @@ class MainWindow(QMainWindow):
             if layout:
                 layout.addWidget(self.project_explorer)
         
-        # Replace build output text with custom OutputPanel in the Build tab
-        self.output_panel = OutputPanel()
-        build_tab = self.outputDockWidget.findChild(QWidget, "buildTab")
-        if build_tab:
-            build_output_text = build_tab.findChild(QWidget, "buildOutputTextEdit")
-            if build_output_text:
-                build_output_text.deleteLater()
-            layout = build_tab.layout()
-            if layout:
-                layout.addWidget(self.output_panel)
+        # Setup problems table - connect double-click to jump to error
+        self.problemsTableWidget.cellDoubleClicked.connect(self.on_problem_activated)
+        self.problemsTableWidget.setColumnWidth(0, 200)  # File column
+        self.problemsTableWidget.setColumnWidth(1, 50)   # Line column
+        self.problemsTableWidget.setColumnWidth(2, 50)   # Column column
+        self.problemsTableWidget.setColumnWidth(3, 400)  # Message column
         
         # Add build status label to status bar
         self.statusBuildLabel = QLabel("Ready")
@@ -152,7 +162,6 @@ class MainWindow(QMainWindow):
     
     def _setup_combo_boxes(self):
         """Initialize toolchain and standard combo boxes."""
-        from PyQt6.QtWidgets import QLabel
         
         # Add toolchain combo to toolbar
         self.mainToolBar.addSeparator()
@@ -160,11 +169,22 @@ class MainWindow(QMainWindow):
         self.mainToolBar.addWidget(toolchain_label)
         
         self.toolchainComboBox = QComboBox()
-        self.toolchainComboBox.addItem("Auto", "auto")
         self.toolchainComboBox.addItem("64-bit (mingw64)", "mingw64")
         self.toolchainComboBox.addItem("32-bit (mingw32)", "mingw32")
         self.toolchainComboBox.setMinimumWidth(150)
         self.mainToolBar.addWidget(self.toolchainComboBox)
+        
+        # Add project type combo for standalone files
+        type_label = QLabel(" Type: ")
+        self.mainToolBar.addWidget(type_label)
+        
+        self.projectTypeComboBox = QComboBox()
+        self.projectTypeComboBox.addItem("Console", "console")
+        self.projectTypeComboBox.addItem("Graphics", "graphics")
+        self.projectTypeComboBox.addItem("OpenMP", "openmp")
+        self.projectTypeComboBox.setMinimumWidth(100)
+        self.projectTypeComboBox.currentIndexChanged.connect(self.on_project_type_changed)
+        self.mainToolBar.addWidget(self.projectTypeComboBox)
         
         # Add standard combo to toolbar
         standard_label = QLabel(" Standard: ")
@@ -209,14 +229,29 @@ class MainWindow(QMainWindow):
         """Update toolchain combo box selection."""
         self.toolchainComboBox.blockSignals(True)
         
-        if preference == "auto":
+        if preference == "mingw64":
             self.toolchainComboBox.setCurrentIndex(0)
-        elif preference == "mingw64":
-            self.toolchainComboBox.setCurrentIndex(1)
         elif preference == "mingw32":
-            self.toolchainComboBox.setCurrentIndex(2)
+            self.toolchainComboBox.setCurrentIndex(1)
         
         self.toolchainComboBox.blockSignals(False)
+    
+    def on_project_type_changed(self, index: int):
+        """Handle project type combo box change."""
+        if self.current_project:
+            return  # Ignore for project mode
+        
+        type_value = self.projectTypeComboBox.itemData(index)
+        self.standalone_project_type = type_value
+        
+        # Auto-adjust toolchain based on type
+        if type_value == "graphics":
+            self.standalone_toolchain_preference = "mingw32"
+            self._update_toolchain_combo("mingw32")
+        elif type_value == "openmp":
+            self.standalone_toolchain_preference = "mingw64"
+            self._update_toolchain_combo("mingw64")
+        # For console, keep user's choice
     
     def _connect_signals(self):
         # File menu
@@ -310,7 +345,6 @@ class MainWindow(QMainWindow):
                 missing.append("mingw64 (64-bit, required for OpenMP)")
             
             if missing:
-                from .core.toolchains import get_app_root
                 app_root = get_app_root()
                 
                 msg = (
@@ -361,6 +395,9 @@ class MainWindow(QMainWindow):
         # Update combo boxes for project
         self._update_toolchain_combo(config.toolchain_preference)
         self._update_standard_combo_for_language(config.language, config.standard)
+        
+        # Hide project type combo in project mode
+        self.projectTypeComboBox.setVisible(False)
         
         # Update status bar
         if hasattr(self, 'statusProjectLabel'):
@@ -429,6 +466,8 @@ int main() {
             if self.current_project:
                 self.current_project = None
                 self.project_explorer.clear()
+                # Show project type combo in standalone mode
+                self.projectTypeComboBox.setVisible(True)
             
             # Update combo boxes for standalone mode
             self._update_standard_combo_for_language(language, self.standalone_standard)
@@ -725,13 +764,17 @@ int main() {
                 self.current_build_thread = None
                 self.current_build_worker = None
                 self.statusBuildLabel.setText("Compilation terminated")
-                self.output_panel.append_output("\n=== Compilation Terminated by User ===\n")
             else:
                 return
         
         # Save all files before building
         if not check_only:
             self.on_save_all()
+        
+        # Get standalone file settings (only used if source_path is provided)
+        toolchain_pref = self.standalone_toolchain_preference
+        standard = self.standalone_standard if self.standalone_standard else None
+        proj_type = self.standalone_project_type
         
         # Create worker and thread
         thread = QThread(self)
@@ -740,7 +783,10 @@ int main() {
             project_config=project_config,
             source_path=source_path,
             force_rebuild=force_rebuild,
-            check_only=check_only
+            check_only=check_only,
+            toolchain_preference=toolchain_pref,
+            standard_override=standard,
+            project_type=proj_type
         )
         worker.moveToThread(thread)
         
@@ -766,10 +812,9 @@ int main() {
         self.buildProjectAction.setEnabled(True)  # Keep enabled to allow termination
         self.buildAndRunAction.setEnabled(False)
         self.runProjectAction.setEnabled(False)
-        self.output_panel.clear_output()
-        self.output_panel.append_output("=== Compilation Started ===\n")
+        # Clear problems table at start of new build
+        self.problemsTableWidget.setRowCount(0)
         self.outputDockWidget.setVisible(True)
-        self.outputTabWidget.setCurrentIndex(0)  # Switch to Build tab
     
     @pyqtSlot(object)
     def on_build_finished(self, result: BuildResult):
@@ -782,24 +827,13 @@ int main() {
         self.current_build_thread = None
         self.current_build_worker = None
         
-        # Append output to build panel
-        if result.command:
-            self.output_panel.append_output(f"\nCommand: {' '.join(result.command)}\n")
-        
-        if result.stdout:
-            self.output_panel.append_output("\n--- Standard Output ---\n")
-            self.output_panel.append_output(result.stdout)
-        
-        if result.stderr:
-            self.output_panel.append_output("\n--- Standard Error ---\n")
-            self.output_panel.append_output(result.stderr)
+        # Parse and display diagnostics in Problems table
+        self.update_problems_from_result(result)
         
         # Update status bar
         if result.success:
-            self.output_panel.append_output("\n=== Compilation Succeeded ===")
             msg = "Compilation succeeded"
         else:
-            self.output_panel.append_output("\n=== Compilation Failed ===")
             msg = "Compilation failed"
         
         if hasattr(result, "elapsed_ms") and self.settings.show_build_elapsed:
@@ -809,10 +843,6 @@ int main() {
             msg = "Compilation skipped (up to date)"
         
         self.statusBuildLabel.setText(msg)
-        
-        # Clear problems table on success
-        if result.success and hasattr(self, 'problemsTableWidget'):
-            self.problemsTableWidget.setRowCount(0)
         
         # Handle pending run after build
         if result.success and self._pending_run_after_build:
@@ -830,6 +860,206 @@ int main() {
         self.runProjectAction.setEnabled(True)
         self.statusBuildLabel.setText("Compilation error")
         QMessageBox.critical(self, "Compilation Error", message)
+    
+    def clear_error_highlights(self) -> None:
+        """Clear any error highlights in all open editors."""
+        for i in range(self.editorTabWidget.count()):
+            widget = self.editorTabWidget.widget(i)
+            if isinstance(widget, CodeEditor):
+                # Clear error selections by setting empty list
+                if not hasattr(widget, 'errorSelections'):
+                    widget.errorSelections = []
+                widget.errorSelections = []
+                widget.setExtraSelections([])
+    
+    def update_problems_from_result(self, result: BuildResult) -> None:
+        """Fill the Problems table and highlight lines based on build stderr."""
+        # Clear existing problems
+        self.problemsTableWidget.setRowCount(0)
+        
+        # Clear previous error highlights
+        self.clear_error_highlights()
+        
+        if not result.stderr:
+            return
+        
+        # Parse diagnostics from stderr
+        diagnostics = parse_gcc_output(result.stderr)
+        
+        if not diagnostics:
+            return
+        
+        # Set table row count
+        self.problemsTableWidget.setRowCount(len(diagnostics))
+        
+        # Populate table with diagnostics
+        for i, diag in enumerate(diagnostics):
+            # Column 0: File (basename for display, full path in UserRole)
+            file_item = QTableWidgetItem(diag.file.name)
+            file_item.setData(Qt.ItemDataRole.UserRole, str(diag.file))
+            self.problemsTableWidget.setItem(i, 0, file_item)
+            
+            # Column 1: Line
+            line_item = QTableWidgetItem(str(diag.line))
+            self.problemsTableWidget.setItem(i, 1, line_item)
+            
+            # Column 2: Column
+            col_item = QTableWidgetItem(str(diag.column))
+            self.problemsTableWidget.setItem(i, 2, col_item)
+            
+            # Column 3: Message with severity prefix
+            msg_item = QTableWidgetItem(f"[{diag.severity}] {diag.message}")
+            
+            # Color code by severity
+            if diag.severity == 'error':
+                msg_item.setForeground(QColor(200, 0, 0))  # Red
+            elif diag.severity == 'warning':
+                msg_item.setForeground(QColor(200, 100, 0))  # Orange
+            else:  # note
+                msg_item.setForeground(QColor(100, 100, 200))  # Blue
+            
+            self.problemsTableWidget.setItem(i, 3, msg_item)
+            
+            # Highlight diagnostic in editor if file is open
+            self.highlight_diagnostic_in_editor(diag)
+        
+        # Show problems dock if we have diagnostics
+        if diagnostics:
+            self.outputDockWidget.setVisible(True)
+    
+    def highlight_diagnostic_in_editor(self, diag: Diagnostic) -> None:
+        """If the file is open, highlight the diagnostic line in the editor."""
+        # Find editor for this file
+        editor = self.find_editor_for_path(diag.file)
+        
+        if not editor:
+            return  # File not open, do nothing
+        
+        # Get the block (line) for this diagnostic
+        doc = editor.document()
+        block = doc.findBlockByNumber(diag.line - 1)  # 0-based
+        
+        if not block.isValid():
+            return
+        
+        cursor = QTextCursor(block)
+        
+        # Create extra selection for error highlighting
+        selection = QTextEdit.ExtraSelection()
+        selection.cursor = cursor
+        selection.format.setBackground(QColor(255, 220, 220))  # Light red
+        selection.format.setProperty(QTextCharFormat.Property.FullWidthSelection, True)
+        
+        # Store error selections on editor
+        if not hasattr(editor, 'errorSelections'):
+            editor.errorSelections = []
+        editor.errorSelections.append(selection)
+        
+        # Apply all error selections
+        editor.setExtraSelections(editor.errorSelections)
+    
+    def find_editor_for_path(self, file_path: Path) -> Optional[CodeEditor]:
+        """Find an open editor for the given file path."""
+        # Normalize path for comparison
+        target_path = str(file_path.resolve()) if file_path.is_absolute() else str(file_path)
+        
+        for i in range(self.editorTabWidget.count()):
+            widget = self.editorTabWidget.widget(i)
+            if isinstance(widget, CodeEditor) and widget.file_path:
+                editor_path = str(Path(widget.file_path).resolve())
+                if editor_path == target_path or widget.file_path == target_path:
+                    return widget
+        
+        return None
+    
+    def on_problem_activated(self, row: int, column: int) -> None:
+        """Open the file and jump to the diagnostic line when a problem is double-clicked."""
+        # Get items from table
+        file_item = self.problemsTableWidget.item(row, 0)
+        line_item = self.problemsTableWidget.item(row, 1)
+        col_item = self.problemsTableWidget.item(row, 2)
+        
+        if not file_item:
+            return
+        
+        # Retrieve full path from UserRole
+        path_str = file_item.data(Qt.ItemDataRole.UserRole) or file_item.text()
+        file_path = Path(path_str)
+        
+        # Parse line/column
+        try:
+            line = int(line_item.text()) if line_item else 1
+        except ValueError:
+            line = 1
+        
+        try:
+            col = int(col_item.text()) if col_item else 1
+        except ValueError:
+            col = 1
+        
+        # Resolve relative paths
+        if not file_path.is_absolute():
+            if self.current_project:
+                file_path = self.current_project.root_path / file_path
+            else:
+                current_editor = self.current_editor()
+                if current_editor and current_editor.file_path:
+                    file_path = Path(current_editor.file_path).parent / file_path
+        
+        # Open file if not already open
+        editor = self.find_editor_for_path(file_path)
+        
+        if not editor and file_path.exists():
+            # Open the file in a new tab
+            try:
+                editor = CodeEditor()
+                editor.load_file(str(file_path))
+                tab_name = file_path.name
+                self.editorTabWidget.addTab(editor, tab_name)
+                self.editorTabWidget.setCurrentWidget(editor)
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Could not open file:\n{e}")
+                return
+        elif editor:
+            # Switch to existing tab
+            for i in range(self.editorTabWidget.count()):
+                if self.editorTabWidget.widget(i) == editor:
+                    self.editorTabWidget.setCurrentIndex(i)
+                    break
+        
+        if not editor:
+            return
+        
+        # Move cursor to diagnostic location
+        doc = editor.document()
+        block = doc.findBlockByNumber(line - 1)  # 0-based
+        
+        if block.isValid():
+            cursor = QTextCursor(block)
+            cursor.setPosition(block.position() + max(col - 1, 0))
+            editor.setTextCursor(cursor)
+            editor.centerCursor()
+            editor.setFocus()
+            
+            # Refresh error highlight for this line
+            selection = QTextEdit.ExtraSelection()
+            selection.cursor = QTextCursor(block)
+            selection.format.setBackground(QColor(255, 220, 220))
+            selection.format.setProperty(QTextCharFormat.Property.FullWidthSelection, True)
+            
+            if not hasattr(editor, 'errorSelections'):
+                editor.errorSelections = []
+            
+            # Check if this line already has a highlight to avoid duplicates
+            has_highlight = False
+            for sel in editor.errorSelections:
+                if sel.cursor.blockNumber() == block.blockNumber():
+                    has_highlight = True
+                    break
+            
+            if not has_highlight:
+                editor.errorSelections.append(selection)
+                editor.setExtraSelections(editor.errorSelections)
     
     def build_current(self, force_rebuild: bool = False, check_only: bool = False):
         """Build current project or standalone file."""
@@ -870,7 +1100,6 @@ int main() {
             
             # Run executable (non-blocking)
             self.statusBuildLabel.setText("Running...")
-            self.output_panel.append_output("\n=== Running Executable ===\n")
             run_executable(self.current_project, self.toolchains)
             self.statusBuildLabel.setText("Program started")
         else:
@@ -880,7 +1109,8 @@ int main() {
                 return
             
             source_path = Path(editor.file_path)
-            exe_path = source_path.parent / "build" / f"{source_path.stem}.exe"
+            # For standalone files, executable is directly in source directory
+            exe_path = source_path.parent / f"{source_path.stem}.exe"
             
             if not exe_path.exists():
                 reply = QMessageBox.question(
@@ -893,15 +1123,28 @@ int main() {
                     self.build_current()
                 return
             
-            # Run executable (non-blocking)
+            # Run executable in external terminal for console programs
+            # Graphics/OpenMP programs run detached without terminal
             self.statusBuildLabel.setText("Running...")
-            self.output_panel.append_output("\n=== Running Executable ===\n")
-            run_single_file(source_path, self.toolchains)
-            self.statusBuildLabel.setText("Program started")
-    
-    def append_build_output(self, text: str):
-        """Append text to build output panel."""
-        self.output_panel.append_output(text)
+            
+            if self.standalone_project_type == "console":
+                # Launch in external terminal for console programs
+                try:
+                    # Use 'start' command on Windows to open in new terminal
+                    subprocess.Popen(f'start cmd /k "{exe_path}"', shell=True)
+                    self.statusBuildLabel.setText("Program started in terminal")
+                except Exception as e:
+                    QMessageBox.warning(self, "Launch Error", f"Failed to launch terminal: {e}")
+                    self.statusBuildLabel.setText("Failed to launch")
+            else:
+                # For graphics/openmp, run detached (no terminal, no output capture)
+                run_single_file(
+                    source_path, self.toolchains,
+                    self.standalone_standard if self.standalone_standard else None,
+                    self.standalone_toolchain_preference,
+                    self.standalone_project_type
+                )
+                self.statusBuildLabel.setText("Program started")
     
     def on_build_project(self):
         """Build current project or standalone file."""
@@ -941,13 +1184,8 @@ int main() {
             return
         
         try:
-            import shutil
             shutil.rmtree(build_dir)
             build_dir.mkdir()
-            
-            self.output_panel.clear_output()
-            self.output_panel.append_output("=== Clean Completed ===\n")
-            self.output_panel.append_output(f"Removed build directory: {build_dir}")
             
             if hasattr(self, 'statusBuildLabel'):
                 self.statusBuildLabel.setText("Clean completed")
@@ -981,10 +1219,11 @@ int main() {
             )
     
     def _on_about(self):
-        """Show about dialog."""
-        QMessageBox.about(
-            self,
-            "About CppLab IDE",
+        """Show about dialog with GitHub wiki link."""
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("About CppLab IDE")
+        msg_box.setTextFormat(Qt.TextFormat.RichText)
+        msg_box.setText(
             f"<h2>CppLab IDE v{__version__}</h2>"
             "<p>Offline C/C++ IDE with bundled MinGW 32/64, graphics.h, and OpenMP support.</p>"
             "<p><b>Features:</b></p>"
@@ -997,8 +1236,11 @@ int main() {
             "<li>Standalone source file mode</li>"
             "<li>Bundled MinGW toolchains</li>"
             "</ul>"
-            "<p>© 2025 CppLab Project</p>"
+            "<p>© 2025 Garima Shrivastava</p>"
+            '<p><a href="https://github.com/techy4shri/CppLabEngine/wiki">Visit Documentation Wiki</a></p>'
         )
+        msg_box.setIcon(QMessageBox.Icon.Information)
+        msg_box.exec()
     
     # ========== UI State Management ==========
     
@@ -1058,11 +1300,6 @@ int main() {
         else:
             # Classic theme - use default styling
             self.setStyleSheet("")
-        
-        # Apply font settings to build output
-        font = QFont("Consolas", self.settings.build_output_font_size)
-        font.setBold(self.settings.build_output_bold)
-        self.output_panel.setFont(font)
         
         # Store build-related settings for use in build operations
         # (accessed later in build methods)

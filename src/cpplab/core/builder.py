@@ -11,7 +11,6 @@ from datetime import datetime
 from .project_config import ProjectConfig
 from .toolchains import ToolchainConfig, get_toolchains, select_toolchain
 
-
 @dataclass
 class BuildResult:
     success: bool
@@ -24,7 +23,15 @@ class BuildResult:
 
 
 def get_executable_path(config: ProjectConfig) -> Path:
-    return config.root_path / "build" / f"{config.name}.exe"
+    # For standalone files (single file with just a filename, no path), 
+    # put exe directly in source directory
+    # For projects (multiple files or files with paths), use build subfolder
+    if len(config.files) == 1 and not Path(config.files[0]).is_absolute() and "/" not in config.files[0] and "\\" not in config.files[0]:
+        # Standalone file - no build folder
+        return config.root_path / f"{config.name}.exe"
+    else:
+        # Project - use build folder
+        return config.root_path / "build" / f"{config.name}.exe"
 
 
 def needs_rebuild(config: ProjectConfig, exe_path: Path) -> bool:
@@ -119,10 +126,11 @@ def build_project(
 ) -> BuildResult:
     toolchain = select_toolchain(config, toolchains)
     
-    build_dir = config.root_path / "build"
-    build_dir.mkdir(exist_ok=True)
-    
+    # Only create build directory for multi-file projects
     exe_path = get_executable_path(config)
+    if "build" in str(exe_path):
+        build_dir = config.root_path / "build"
+        build_dir.mkdir(exist_ok=True)
     
     # Check if rebuild is needed
     if not force_rebuild and not needs_rebuild(config, exe_path):
@@ -317,7 +325,8 @@ def detect_features_from_source(source_path: Path) -> dict[str, bool]:
 def project_config_for_single_file(
     source_path: Path,
     standard_override: Optional[str] = None,
-    toolchain_preference: str = "auto"
+    toolchain_preference: str = "mingw64",  # Default to 64-bit
+    project_type: str = "console"  # Allow specifying project type
 ) -> ProjectConfig:
     """Create a synthetic ProjectConfig for a standalone source file."""
     ext = source_path.suffix.lower()
@@ -325,25 +334,35 @@ def project_config_for_single_file(
     # Determine language from extension
     if ext == ".c":
         language: Literal["c", "cpp"] = "c"
-        standard = standard_override or "c11"
+        standard = standard_override or "c17"
     elif ext in [".cpp", ".cc", ".cxx"]:
         language = "cpp"
         standard = standard_override or "c++17"
     else:
         raise ValueError(f"Unsupported file extension: {ext}")
     
-    # Auto-detect graphics and OpenMP from source
-    features = detect_features_from_source(source_path)
+    # Auto-detect features from source if project_type is console
+    features = {}
+    if project_type == "console":
+        detected_features = detect_features_from_source(source_path)
+        features = detected_features
+    elif project_type == "graphics":
+        features = {"graphics": True, "openmp": False}
+        toolchain_preference = "mingw32"  # Force 32-bit for graphics
+    elif project_type == "openmp":
+        features = {"graphics": False, "openmp": True}
+        toolchain_preference = "mingw64"  # Force 64-bit for OpenMP
     
+    # Put executable in the same directory as source file
     return ProjectConfig(
         name=source_path.stem,
-        root_path=source_path.parent,
+        root_path=source_path.parent,  # Use source file's directory
         language=language,
         standard=standard,
-        project_type="console",
+        project_type=project_type,
         features=features,
-        files=[Path(source_path.name)],
-        main_file=Path(source_path.name),
+        files=[source_path.name],  # Just filename
+        main_file=source_path.name,  # Just filename
         toolchain_preference=toolchain_preference
     )
 
@@ -352,10 +371,11 @@ def build_single_file(
     source_path: Path,
     toolchains: dict[str, ToolchainConfig],
     standard_override: Optional[str] = None,
-    toolchain_preference: str = "auto"
+    toolchain_preference: str = "mingw64",
+    project_type: str = "console"
 ) -> BuildResult:
     """Build a standalone source file without a project."""
-    config = project_config_for_single_file(source_path, standard_override, toolchain_preference)
+    config = project_config_for_single_file(source_path, standard_override, toolchain_preference, project_type)
     return build_project(config, toolchains)
 
 
@@ -363,10 +383,11 @@ def run_single_file(
     source_path: Path,
     toolchains: dict[str, ToolchainConfig],
     standard_override: Optional[str] = None,
-    toolchain_preference: str = "auto"
+    toolchain_preference: str = "mingw64",
+    project_type: str = "console"
 ) -> BuildResult:
     """Run a standalone source file's executable."""
-    config = project_config_for_single_file(source_path, standard_override, toolchain_preference)
+    config = project_config_for_single_file(source_path, standard_override, toolchain_preference, project_type)
     return run_executable(config, toolchains)
 
 
@@ -374,8 +395,9 @@ def check_single_file(
     source_path: Path,
     toolchains: dict[str, ToolchainConfig],
     standard_override: Optional[str] = None,
-    toolchain_preference: str = "auto"
+    toolchain_preference: str = "mingw64",
+    project_type: str = "console"
 ) -> BuildResult:
     """Run syntax-only check on a standalone source file."""
-    config = project_config_for_single_file(source_path, standard_override, toolchain_preference)
+    config = project_config_for_single_file(source_path, standard_override, toolchain_preference, project_type)
     return check_project(config, toolchains)

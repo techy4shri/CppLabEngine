@@ -215,7 +215,7 @@
   </widget>
   <widget class="QDockWidget" name="outputDockWidget">
    <property name="windowTitle">
-    <string>Output</string>
+    <string>Problems</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>8</number>
@@ -238,138 +238,33 @@
       <number>0</number>
      </property>
      <item>
-      <widget class="QTabWidget" name="outputTabWidget">
-       <property name="currentIndex">
+      <widget class="QTableWidget" name="problemsTableWidget">
+       <property name="rowCount">
         <number>0</number>
        </property>
-       <widget class="QWidget" name="buildTab">
-        <attribute name="title">
-         <string>Output</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="buildTabLayout">
-         <property name="spacing">
-          <number>0</number>
-         </property>
-         <property name="leftMargin">
-          <number>0</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-         <item>
-          <widget class="QPlainTextEdit" name="buildOutputTextEdit">
-           <property name="font">
-            <font>
-             <family>Consolas</family>
-             <pointsize>9</pointsize>
-            </font>
-           </property>
-           <property name="readOnly">
-            <bool>true</bool>
-           </property>
-           <property name="placeholderText">
-            <string>Compilation and program output will appear here.</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-       <widget class="QWidget" name="problemsTab">
-        <attribute name="title">
-         <string>Problems</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="problemsTabLayout">
-         <property name="spacing">
-          <number>0</number>
-         </property>
-         <property name="leftMargin">
-          <number>0</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-         <item>
-          <widget class="QTableWidget" name="problemsTableWidget">
-           <property name="rowCount">
-            <number>0</number>
-           </property>
-           <property name="columnCount">
-            <number>4</number>
-           </property>
-           <column>
-            <property name="text">
-             <string>File</string>
-            </property>
-           </column>
-           <column>
-            <property name="text">
-             <string>Line</string>
-            </property>
-           </column>
-           <column>
-            <property name="text">
-             <string>Column</string>
-            </property>
-           </column>
-           <column>
-            <property name="text">
-             <string>Message</string>
-            </property>
-           </column>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-       <widget class="QWidget" name="consoleTab">
-        <attribute name="title">
-         <string>Console</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="consoleTabLayout">
-         <property name="spacing">
-          <number>0</number>
-         </property>
-         <property name="leftMargin">
-          <number>0</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-         <item>
-          <widget class="QPlainTextEdit" name="consoleTextEdit">
-           <property name="font">
-            <font>
-             <family>Consolas</family>
-             <pointsize>9</pointsize>
-            </font>
-           </property>
-           <property name="readOnly">
-            <bool>true</bool>
-           </property>
-           <property name="placeholderText">
-            <string>Console output from running programs will appear here.</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
+       <property name="columnCount">
+        <number>4</number>
+       </property>
+       <column>
+        <property name="text">
+         <string>File</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>Line</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>Column</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>Message</string>
+        </property>
+       </column>
       </widget>
      </item>
     </layout>
