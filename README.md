@@ -1,4 +1,4 @@
-# CppLab IDE
+# CppLabEngine
 
 A dedicated offline C/C++ IDE for college students with bundled MinGW compilers, graphics.h support, and OpenMP.
 So I made this C/C++ IDE after being frustrated with Dev-Cpp (long live that software) and its inability to let me code in C++17/20 while working with omp.h and old graphics header. Now, this is by no means a proper alternative (in my unprofessional and inexperienced opinion) but, this works nicely, the app has extremely low build latency and runtime and most of all, it has support for both that legacy header and modern/shiny cpp which many students, including me learn.
@@ -8,11 +8,11 @@ Look, I know you would rather go with VS Code, but I ain't got that in my colleg
 
 **Latest Release: v0.1.0**
 
-📦 [Download CppLabIDE-v0.1.0-win64.zip](https://github.com/techy4shri/CppLabEngine/releases)
+📦 [Download CppLabEngine-v0.1.0-win64.zip](https://github.com/techy4shri/CppLabEngine/releases)
 
 **Quick Start:**
 1. Download and extract the zip file anywhere on your computer
-2. Run `CppLabIDE.exe` - no installation needed
+2. Run `CppLabEngine.exe` - no installation needed
 3. Start coding with C/C++ immediately
 
 **Requirements:** Windows 10/11 (64-bit) (again, this app was built in windows 11 so yeah, I got no idea if this will work with older versions but if it does, good for you)
@@ -127,7 +127,7 @@ This will:
 1. Clean previous builds
 2. Run PyInstaller to create executable
 3. Copy compilers/, examples/, and licenses/ into distribution
-4. Create `dist/CppLabIDE-v0.1.0-win64.zip`
+4. Create `dist/CppLabEngine-v0.1.0-win64.zip`
 
 **Build Requirements:**
 - Python 3.11+
@@ -181,7 +181,7 @@ This is an early release focused on core functionality:
 - **Windows Only**: Currently targets Windows 10/11 (64-bit)
 - **No Debugger**: Integrated debugging not yet implemented (use GDB externally)
 - **Build Performance**: Builds may be slow on some systems
-  - Recommendation: Add CppLabIDE folder to antivirus exclusions for faster builds
+  - Recommendation: Add CppLabEngine folder to antivirus exclusions for faster builds
 - **Graphics + OpenMP**: Cannot use both features in same project (graphics requires 32-bit, OpenMP better on 64-bit)
 - **Limited Standards**: C++20/23 and C18/23 support depends on MinGW version bundled (experimental features may not work)
 

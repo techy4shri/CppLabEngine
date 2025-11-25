@@ -1,6 +1,6 @@
-# Contributing to CppLab IDE
+# Contributing to CppLabEngine
 
-Thank you for your interest in contributing to CppLab IDE! This document provides guidelines for contributing to the project.
+Thank you for your interest in contributing to CppLabEngine! This document provides guidelines for contributing to the project.
 
 ## Getting Started
 
@@ -300,4 +300,4 @@ Contributors are recognized in:
 - GitHub contributors page
 - Release notes
 
-Thank you for contributing to CppLab IDE!
+Thank you for contributing to CppLabEngine!

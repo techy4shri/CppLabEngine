@@ -1,2 +1,2 @@
-# CppLab IDE package init.
+# CppLabEngine package init.
 __version__ = "0.1.0"

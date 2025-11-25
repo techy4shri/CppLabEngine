@@ -1,4 +1,4 @@
-# CppLab IDE - Tests and Benchmarks
+# CppLabEngine - Tests and Benchmarks
 
 ## Running Tests
 
@@ -79,7 +79,7 @@ python benchmarks/bench_build_times.py
 ### Sample Output
 
 ```
-=== CppLab IDE Build Performance Benchmark ===
+=== CppLabEngine Build Performance Benchmark ===
 Detected toolchains: mingw32, mingw64
 
 Benchmarking: hello_cpp17

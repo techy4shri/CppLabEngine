@@ -1,4 +1,4 @@
-# Release build script for CppLab IDE.
+# Release build script for CppLabEngine.
 # Creates a portable Windows distribution with PyInstaller.
 
 import os
@@ -97,7 +97,7 @@ def copy_resources():
     license_src = ROOT_DIR / "LICENSE"
     if license_src.exists():
         print(f"  Copying LICENSE")
-        shutil.copy2(license_src, licenses_dst / "CppLabIDE_LICENSE.txt")
+        shutil.copy2(license_src, licenses_dst / "CppLabEngine_LICENSE.txt")
     
     # Create placeholder license files for bundled components
     print("  Creating license placeholders")
@@ -138,7 +138,7 @@ def create_readme():
     """Create end-user README.txt."""
     print_step(4, 6, "Creating README.txt")
     
-    readme_content = f"""CppLab IDE v{VERSION}
+    readme_content = f"""CppLabEngine v{VERSION}
 {'='*70}
 
 An offline C/C++ IDE for Windows with bundled compilers and graphics support.
@@ -161,9 +161,9 @@ REQUIREMENTS
 INSTALLATION
 ------------
 1. Extract this folder anywhere on your computer
-   (e.g., C:\\CppLabIDE or D:\\Programs\\CppLabIDE)
+   (e.g., C:\\CppLabEngine or D:\\Programs\\CppLabEngine)
 
-2. Double-click CppLabIDE.exe to start
+2. Double-click CppLabEngine.exe to start
 
 No admin rights required after extraction.
 No installation needed - the app is fully portable.
@@ -173,7 +173,7 @@ IMPORTANT NOTES
 - First launch may be slow while Windows scans the files
 - Builds may be slow if your antivirus scans every compile
   
-  RECOMMENDED: Add the CppLabIDE folder to your antivirus exclusions
+  RECOMMENDED: Add the CppLabEngine folder to your antivirus exclusions
   for faster build performance.
 
 - The compilers/ folder contains MinGW toolchains (required)
@@ -206,7 +206,7 @@ TROUBLESHOOTING
 - If exe crashes: Try running from a path without spaces or special characters
 - If builds fail: Check that compilers/ folder exists with mingw32/ and mingw64/
 - If graphics don't work: Graphics requires 32-bit MinGW (mingw32/)
-- Slow builds: Add CppLabIDE folder to antivirus exclusions
+- Slow builds: Add CppLabEngine folder to antivirus exclusions
 
 DOCUMENTATION
 -------------
@@ -219,7 +219,7 @@ Issues: https://github.com/techy4shri/CppLabEngine/issues
 
 LICENSE
 -------
-See licenses/ folder for CppLabIDE and bundled component licenses.
+See licenses/ folder for CppLabEngine and bundled component licenses.
 
 © 2025 CppLab Project
 """

@@ -1,4 +1,4 @@
-# Build script for CppLab IDE Windows release
+# Build script for CppLabEngine Windows release
 # Creates a standalone distribution with PyInstaller
 
 $ErrorActionPreference = "Stop"

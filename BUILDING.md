@@ -1,6 +1,6 @@
-# Building CppLab IDE
+# Building CppLabEngine
 
-This document provides detailed instructions for building CppLab IDE from source.
+This document provides detailed instructions for building CppLabEngine from source.
 
 ## Quick Build
 
@@ -42,10 +42,10 @@ The `build.ps1` script performs these steps:
 4. **PyInstaller** - Builds executable with these options:
    - `--onedir` - Creates directory with executable and dependencies
    - `--windowed` - No console window (GUI app)
-   - `--name CppLabIDE` - Sets executable name
+   - `--name CppLabEngine` - Sets executable name
    - `--add-data` - Bundles UI files and documentation
 5. **Resources** - Copies compilers, examples, licenses, README, LICENSE
-6. **Archive** - Creates `CppLabIDE-v0.1.0-win64.zip` in `dist/`
+6. **Archive** - Creates `CppLabEngine-v0.1.0-win64.zip` in `dist/`
 
 ### Output Structure
 
@@ -53,8 +53,8 @@ After building, you'll have:
 
 ```
 dist/
-├── CppLabIDE/
-│   ├── CppLabIDE.exe          # Main executable
+├── CppLabEngine/
+│   ├── CppLabEngine.exe          # Main executable
 │   ├── _internal/             # Python runtime and dependencies
 │   ├── cpplab/
 │   │   └── ui/                # UI files (.ui)
@@ -66,7 +66,7 @@ dist/
 │   ├── licenses/              # Third-party licenses
 │   ├── LICENSE                # Main license
 │   └── README.md              # User documentation
-└── CppLabIDE-v0.1.0-win64.zip # Distribution archive
+└── CppLabEngine-v0.1.0-win64.zip # Distribution archive
 ```
 
 ## Manual Build Steps
@@ -91,7 +91,7 @@ python -m pip install pyinstaller
 
 ```powershell
 pyinstaller --onedir `
-    --name CppLabIDE `
+    --name CppLabEngine `
     --windowed `
     --noconfirm `
     --clean `
@@ -104,23 +104,23 @@ pyinstaller --onedir `
 
 ```powershell
 # Copy compilers
-Copy-Item -Recurse -Force compilers dist\CppLabIDE\compilers
+Copy-Item -Recurse -Force compilers dist\CppLabEngine\compilers
 
 # Copy examples (if exists)
-Copy-Item -Recurse -Force examples dist\CppLabIDE\examples
+Copy-Item -Recurse -Force examples dist\CppLabEngine\examples
 
 # Copy licenses (if exists)
-Copy-Item -Recurse -Force licenses dist\CppLabIDE\licenses
+Copy-Item -Recurse -Force licenses dist\CppLabEngine\licenses
 
 # Copy LICENSE and README
-Copy-Item -Force LICENSE dist\CppLabIDE\LICENSE
-Copy-Item -Force README.md dist\CppLabIDE\README.md
+Copy-Item -Force LICENSE dist\CppLabEngine\LICENSE
+Copy-Item -Force README.md dist\CppLabEngine\README.md
 ```
 
 ### 4. Create Archive
 
 ```powershell
-Compress-Archive -Path dist\CppLabIDE -DestinationPath dist\CppLabIDE-v0.1.0-win64.zip
+Compress-Archive -Path dist\CppLabEngine -DestinationPath dist\CppLabEngine-v0.1.0-win64.zip
 ```
 
 ## Customizing the Build
@@ -191,12 +191,12 @@ After building:
 
 1. **Test locally:**
    ```powershell
-   .\dist\CppLabIDE\CppLabIDE.exe
+   .\dist\CppLabEngine\CppLabEngine.exe
    ```
 
 2. **Test on clean system:**
-   - Copy `dist/CppLabIDE/` to another Windows machine
-   - Run `CppLabIDE.exe` (no Python installation required)
+   - Copy `dist/CppLabEngine/` to another Windows machine
+   - Run `CppLabEngine.exe` (no Python installation required)
 
 3. **Test project creation:**
    - Create a new console project
@@ -205,11 +205,11 @@ After building:
 
 ## Distributing
 
-The `CppLabIDE-v0.1.0-win64.zip` file contains everything needed:
+The `CppLabEngine-v0.1.0-win64.zip` file contains everything needed:
 
 1. Upload to releases page on GitHub
 2. Users download and extract
-3. Run `CppLabIDE.exe` - no installation required
+3. Run `CppLabEngine.exe` - no installation required
 
 ## Build Environment
 

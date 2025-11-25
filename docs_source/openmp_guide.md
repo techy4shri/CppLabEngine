@@ -1,4 +1,4 @@
-# Using OpenMP (omp.h) in CppLab IDE
+# Using OpenMP (omp.h) in CppLabEngine
 
 ## What is OpenMP?
 
@@ -15,7 +15,7 @@ OpenMP is ideal for:
 - Multi-threaded performance optimization
 - Learning parallel programming concepts
 
-CppLab IDE includes OpenMP support via GCC's libgomp implementation in the mingw64 (64-bit) toolchain.
+CppLabEngine includes OpenMP support via GCC's libgomp implementation in the mingw64 (64-bit) toolchain.
 
 ## When to Use OpenMP
 
@@ -333,7 +333,7 @@ int main() {
 **Solutions:**
 1. Ensure `toolchains/mingw64/bin` is in your system PATH
 2. Copy `libgomp-1.dll` from mingw64/bin to your project's bin folder
-3. Run programs from within CppLab IDE (PATH is set automatically)
+3. Run programs from within CppLabEngine (PATH is set automatically)
 
 ### No Performance Improvement
 
@@ -370,7 +370,7 @@ counter++;
 
 ## OpenMP in Standalone Files (v1 Limitation)
 
-**Note:** In CppLab IDE v1.0, OpenMP support is optimized for **project mode**. While standalone source files can technically include `<omp.h>`, the IDE does not automatically add `-fopenmp` for single files. 
+**Note:** In CppLabEngine v1.0, OpenMP support is optimized for **project mode**. While standalone source files can technically include `<omp.h>`, the IDE does not automatically add `-fopenmp` for single files. 
 
 **Workaround:** Create a minimal Console App project with OpenMP enabled.
 

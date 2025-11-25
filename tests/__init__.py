@@ -1,1 +1,1 @@
-# Test suite for CppLab IDE core functionality.
+# Test suite for CppLabEngine core functionality.

@@ -1,6 +1,6 @@
-# CppLab IDE v0.1.0 (Windows x64)
+# CppLabEngine v0.1.0 (Windows x64)
 
-**First public release of CppLab IDE** - An offline C/C++ development environment designed for college students and educators.
+**First public release of CppLabEngine** - An offline C/C++ development environment designed for college students and educators.
 
 ---
 
@@ -16,7 +16,7 @@
 
 ## 📦 What's Included
 
-- **CppLabIDE.exe** - Main IDE application (Windows GUI)
+- **CppLabEngine.exe** - Main IDE application (Windows GUI)
 - **MinGW Compilers** - 32-bit (graphics) and 64-bit (OpenMP) toolchains
 - **Example Projects** - Sample code for console, graphics, and OpenMP
 - **Documentation** - Offline help and guides
@@ -52,7 +52,7 @@
 
 ## 💾 Downloads
 
-**File:** `CppLabIDE-v0.1.0-win64.zip`
+**File:** `CppLabEngine-v0.1.0-win64.zip`
 
 **Size:** ~500-800 MB (includes compilers)
 
@@ -61,8 +61,8 @@
 ## 🚀 Quick Start
 
 1. **Download** the zip file from this release
-2. **Extract** to any folder (e.g., `C:\CppLabIDE`)
-3. **Run** `CppLabIDE.exe`
+2. **Extract** to any folder (e.g., `C:\CppLabEngine`)
+3. **Run** `CppLabEngine.exe`
 4. **Create** a new project or open a standalone .cpp file
 5. **Build** with F7 or Build & Run with F5
 
@@ -81,14 +81,14 @@ No installation wizard. No admin rights needed after extraction.
 - **Windows only** - Linux and macOS support planned for future releases
 - **No debugger** - Use external GDB for now (integrated debugger planned)
 - **Build performance** - May be slow with active antivirus
-  - **Solution:** Add CppLabIDE folder to antivirus exclusions
+  - **Solution:** Add CppLabEngine folder to antivirus exclusions
 - **Graphics + OpenMP** - Cannot be used together in one project
   - Graphics requires 32-bit compiler
   - OpenMP works better with 64-bit compiler
 
 ### Workarounds
 - For debugging: Use GDB from command line with compiled executables
-- For faster builds: Exclude CppLabIDE folder in Windows Defender
+- For faster builds: Exclude CppLabEngine folder in Windows Defender
 - For both graphics and OpenMP: Create separate projects
 
 ## 📚 Documentation
@@ -131,7 +131,7 @@ See [CHANGELOG.md](https://github.com/techy4shri/CppLabEngine/blob/main/CHANGELO
 
 ## 📄 License
 
-CppLabIDE is released under the MIT License (see included LICENSE file).
+CppLabEngine is released under the MIT License (see included LICENSE file).
 
 Bundled components have their own licenses (see `licenses/` folder):
 - MinGW: GPL v3+ with runtime exception
@@ -140,6 +140,6 @@ Bundled components have their own licenses (see `licenses/` folder):
 
 ---
 
-**Enjoy coding with CppLab IDE!** 🚀
+**Enjoy coding with CppLabEngine!** 🚀
 
 For support and updates, visit: https://github.com/techy4shri/CppLabEngine

@@ -1,4 +1,4 @@
-# Build performance benchmark harness for CppLab IDE.
+# Build performance benchmark harness for CppLabEngine.
 
 import sys
 import time
@@ -54,7 +54,7 @@ def main():
         print("ERROR: No toolchains detected. Please install MinGW.")
         return
     
-    print("=== CppLab IDE Build Performance Benchmark ===")
+    print("=== CppLabEngine Build Performance Benchmark ===")
     print(f"Detected toolchains: {', '.join(toolchains.keys())}")
     
     # Projects to benchmark

@@ -110,7 +110,7 @@ def test_module_imports():
 
 def main():
     print("=" * 50)
-    print("CppLab IDE - Pre-launch Tests")
+    print("CppLabEngine - Pre-launch Tests")
     print("=" * 50)
     
     all_errors = []

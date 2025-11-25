@@ -1,4 +1,4 @@
-# Using graphics.h in CppLab IDE
+# Using graphics.h in CppLabEngine
 
 ## What is graphics.h?
 
@@ -8,7 +8,7 @@
 - Legacy DOS-era C/C++ programs
 - Educational projects requiring simple visualization
 
-CppLab IDE includes a modern Windows port (WinBGIM) that allows `graphics.h` programs to run on contemporary Windows systems.
+CppLabEngine includes a modern Windows port (WinBGIM) that allows `graphics.h` programs to run on contemporary Windows systems.
 
 ## When to Use graphics.h
 
@@ -663,4 +663,4 @@ If you outgrow graphics.h limitations, consider migrating to:
 - **raylib**: Beginner-friendly game development library
 - **OpenGL**: Industry-standard 3D graphics API
 
-CppLab IDE may support these libraries in future versions.
+CppLabEngine may support these libraries in future versions.

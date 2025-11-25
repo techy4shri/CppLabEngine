@@ -392,7 +392,7 @@ class MainWindow(QMainWindow):
         """Load project and update UI."""
         self.current_project = config
         self.project_explorer.load_project(config)
-        self.setWindowTitle(f"CppLab IDE - {config.name}")
+        self.setWindowTitle(f"CppLabEngine - {config.name}")
         
         # Clear standalone mode
         self.standalone_files.clear()
@@ -479,7 +479,7 @@ int main() {
             self._update_toolchain_combo(self.standalone_toolchain_preference)
             
             # Update status bar
-            self.setWindowTitle(f"CppLab IDE - {abs_path.name}")
+            self.setWindowTitle(f"CppLabEngine - {abs_path.name}")
             if hasattr(self, 'statusProjectLabel'):
                 self.statusProjectLabel.setText(f"Standalone: {abs_path.name}")
             
@@ -521,7 +521,7 @@ int main() {
         self._update_toolchain_combo(self.standalone_toolchain_preference)
         
         # Update status bar
-        self.setWindowTitle(f"CppLab IDE - {abs_path.name}")
+        self.setWindowTitle(f"CppLabEngine - {abs_path.name}")
         if hasattr(self, 'statusProjectLabel'):
             self.statusProjectLabel.setText(f"Standalone: {abs_path.name}")
         

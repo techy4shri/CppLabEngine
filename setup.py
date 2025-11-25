@@ -1,5 +1,5 @@
 """
-CppLab IDE - A dedicated C/C++ IDE for college students
+CppLabEngine - A dedicated C/C++ IDE for college students
 """
 
 from setuptools import setup, find_packages

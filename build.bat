@@ -1,8 +1,8 @@
 @echo off
-REM Build script for CppLab IDE distribution
+REM Build script for CppLabEngine distribution
 
 echo ========================================
-echo CppLab IDE Build Script
+echo CppLabEngine Build Script
 echo ========================================
 echo.
 
@@ -44,7 +44,7 @@ if errorlevel 1 (
 echo.
 echo [5/5] Copying compilers to distribution...
 if exist compilers (
-    xcopy /E /I /Y compilers dist\CppLabIDE\compilers
+    xcopy /E /I /Y compilers dist\CppLabEngine\compilers
     echo Compilers copied successfully
 ) else (
     echo WARNING: compilers/ directory not found
@@ -56,11 +56,11 @@ echo ========================================
 echo Build completed successfully!
 echo ========================================
 echo.
-echo Output directory: dist\CppLabIDE\
-echo Executable: dist\CppLabIDE\CppLabIDE.exe
+echo Output directory: dist\CppLabEngine\
+echo Executable: dist\CppLabEngine\CppLabEngine.exe
 echo.
 echo Next steps:
-echo 1. Add MinGW toolchains to dist\CppLabIDE\compilers\
+echo 1. Add MinGW toolchains to dist\CppLabEngine\compilers\
 echo 2. Test the executable
 echo 3. Create installer or zip for distribution
 echo.

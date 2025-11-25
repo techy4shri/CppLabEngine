@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Creator: CorelDRAW -->
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="2048px" height="2048px" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+viewBox="0 0 2048 2048"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+ <defs>
+  <style type="text/css">
+   <![CDATA[
+    .fil5 {fill:none}
+    .fil0 {fill:#01579B}
+    .fil1 {fill:#0277BD}
+    .fil3 {fill:#424242}
+    .fil2 {fill:#EEEEEE}
+    .fil4 {fill:#757575;fill-rule:nonzero}
+   ]]>
+  </style>
+ </defs>
+ <g id="Layer_x0020_1">
+  <metadata id="CorelCorpID_0Corel-Layer"/>
+  <path class="fil0" d="M331.788 255.999l1217.69 0 242.527 242.528 0 1217.68c0,41.6835 -34.1032,75.7879 -75.7879,75.7879l-1384.42 0c-41.6835,0 -75.7879,-34.1044 -75.7879,-75.7879l0 -1384.42c0,-41.6847 34.1044,-75.7879 75.7879,-75.7879z"/>
+  <path class="fil1" d="M569.579 255.999l908.842 0 0 381.474c0,51.2953 -41.8618,93.1583 -93.1572,93.1583l-722.528 0c-51.2953,0 -93.1572,-41.863 -93.1572,-93.1583l0 -381.474z"/>
+  <path class="fil1" d="M1486.32 1792l-924.631 0 0 -482.527c0,-55.6536 45.3992,-101.052 101.052,-101.052l722.528 0c55.6524,0 101.052,45.3981 101.052,101.052l0 482.527z"/>
+  <path class="fil2" d="M599.579 255.999l848.842 0 0 381.474c0,34.7374 -28.4209,63.1583 -63.1571,63.1583l-722.528 0c-34.7362,0 -63.1571,-28.4197 -63.1571,-63.1583l0 -381.474z"/>
+  <path class="fil2" d="M599.579 1792l848.842 0 0 -482.527c0,-34.7374 -28.4197,-63.1571 -63.1571,-63.1571l-722.528 0c-34.7374,0 -63.1571,28.4197 -63.1571,63.1571l0 482.527z"/>
+  <rect class="fil3" x="1145.26" y="255.999" width="186.305" height="363.789"/>
+  <polygon class="fil4" points="720.843,1449 1327.16,1449 1327.16,1487.33 720.843,1487.33 "/>
+  <polygon class="fil4" points="720.843,1617.77 1327.16,1617.77 1327.16,1656.11 720.843,1656.11 "/>
+  <rect class="fil5" width="2048" height="2048"/>
+  <rect class="fil5" x="255.999" y="255.999" width="1536" height="1536"/>
+  <rect class="fil5" x="256" y="256" width="1536" height="1536"/>
+ </g>
+</svg>
