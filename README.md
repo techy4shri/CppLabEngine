@@ -6,9 +6,9 @@ Look, I know you would rather go with VS Code, but I ain't got that in my colleg
 
 ## Downloads
 
-**Latest Release: v0.1.0**
+**Latest Release: v1.0.0**
 
-📦 [Download CppLabEngine-v0.1.0-win64.zip](https://github.com/techy4shri/CppLabEngine/releases)
+📦 [Download CppLabEngine-v1.0.0-win64.zip](https://github.com/techy4shri/CppLabEngine/releases/tag/v1.0.0)
 
 **Quick Start:**
 1. Download and extract the zip file anywhere on your computer
@@ -183,7 +183,6 @@ This is an early release focused on core functionality:
 - **Build Performance**: Builds may be slow on some systems
   - Recommendation: Add CppLabEngine folder to antivirus exclusions for faster builds
 - **Graphics + OpenMP**: Cannot use both features in same project (graphics requires 32-bit, OpenMP better on 64-bit)
-- **Limited Standards**: C++20/23 and C18/23 support depends on MinGW version bundled (experimental features may not work)
 
 ## Code Style
 
@@ -196,12 +195,12 @@ The codebase follows these conventions:
 ## Future Enhancements
 
 - [ ] Integrated debugger (GDB)
-- [ ] Linux and macOS support
+- [ ] Linux and macOS support (not in my agenda atm if I am being honest)
 - [ ] Auto-completion
 - [ ] Code templates library
 - [ ] Project templates
 - [x] Settings dialog for toolchain configuration
-- [ ] Git integration
+- [ ] Git integration (do we need this?)
 - [ ] Enhanced documentation browser
 
 ## Requirements
