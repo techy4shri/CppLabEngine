@@ -1,5 +1,8 @@
-# CppLabEngine <p align="left"><a href="https://github.com/sponsors/techy4shri"><img src="https://img.shields.io/badge/Sponsor_this_project-181717?style=for-the-badge&logo=github-sponsors" alt="Sponsor this project"></a> <img src="https://img.shields.io/badge/C%2B%2B-00599C?style=for-the-badge&logo=cplusplus&logoColor=white" alt="C++"> <img src="https://img.shields.io/badge/C-00599C?style=for-the-badge&logo=c&logoColor=white" alt="C"> <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"> <img src="https://img.shields.io/badge/PyQt6-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="PyQt6"> </p>
-
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-green.svg)](https://www.gnu.org/licenses/gpl-3.0)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/techy4shri/CppLabEngine/total)
+[![](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/techy4shri)
+<!--[![](https://img.shields.io/static/v1?label=Buy%20me%20a%20coffee&message=%E2%9D%A4&logo=buymeacoffee&color=%23fe8e86)](https://www.buymeacoffee.com/cpvalente)-->
+# CppLabEngine 
 A dedicated offline C/C++ IDE for college students with bundled MinGW compilers, graphics.h support, and OpenMP.
 So I made this C/C++ IDE after being frustrated with Dev-Cpp (long live that software) and its inability to let me code in C++17/20 while working with omp.h and old graphics header. Now, this is by no means a proper alternative (in my unprofessional and inexperienced opinion) but, this works nicely, the app has extremely low build latency and runtime and most of all, it has support for both that legacy header and modern/shiny cpp which many students, including me learn.
 Look, I know you would rather go with VS Code, but I ain't got that in my college lab and so this is my solution. Use it, critic it, support it, or ignore it, your choice. Have a nice day and happy programming :D
