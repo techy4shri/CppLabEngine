@@ -216,7 +216,13 @@ The codebase follows these conventions:
 
 ## License
 
-See [LICENSE](/LICENSE) file for details.
+The source code of Cpp Lab Engine is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.  
+See the [LICENSE](LICENSE) file for full text.
+
+This project also bundles third-party components under their own licenses, including (but not limited to):
+
+- PyQt6 (GPL-3.0/commercial)
+- MinGW-w64 / GCC toolchains (GPL/LGPL)
 
 ## Contributing
 
