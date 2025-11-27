@@ -231,40 +231,110 @@ See licenses/ folder for CppLabEngine and bundled component licenses.
     print(f"  Created {readme_path} ✓")
 
 
-def create_zip():
-    """Create release zip archive."""
-    print_step(5, 6, "Creating release archive")
+def create_archives():
+    """Create release archives (both .zip and .7z)."""
+    print_step(5, 7, "Creating release archives")
     
-    zip_name = f"{APP_NAME}-v{VERSION}-win64.zip"
+    dist_folder = DIST_DIR / APP_NAME
+    
+    # Create standard .zip (maximum compatibility)
+    print(f"  Creating .zip archive (standard compression)...")
+    zip_name = f"{APP_NAME}-v{VERSION}-windows-x64.zip"
     zip_path = DIST_DIR / zip_name
     
     if zip_path.exists():
         zip_path.unlink()
     
-    print(f"  Compressing {APP_NAME}/")
-    
-    # Create zip with the folder
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        dist_folder = DIST_DIR / APP_NAME
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
         for file_path in dist_folder.rglob('*'):
             if file_path.is_file():
                 arc_name = file_path.relative_to(DIST_DIR)
                 zf.write(file_path, arc_name)
     
-    size_mb = zip_path.stat().st_size / (1024 * 1024)
-    print(f"  Created {zip_path} ({size_mb:.1f} MB) ✓")
+    zip_size_mb = zip_path.stat().st_size / (1024 * 1024)
+    print(f"    ✓ {zip_path.name} ({zip_size_mb:.1f} MB)")
+    
+    # Create .7z archive (better compression, requires 7-Zip)
+    print(f"\n  Creating .7z archive (ultra compression)...")
+    sevenz_name = f"{APP_NAME}-v{VERSION}-windows-x64.7z"
+    sevenz_path = DIST_DIR / sevenz_name
+    
+    if sevenz_path.exists():
+        sevenz_path.unlink()
+    
+    # Try to use 7z command line
+    sevenz_cmd = shutil.which("7z")
+    if not sevenz_cmd:
+        # Try common installation paths
+        possible_paths = [
+            r"C:\Program Files\7-Zip\7z.exe",
+            r"C:\Program Files (x86)\7-Zip\7z.exe",
+        ]
+        for path in possible_paths:
+            if Path(path).exists():
+                sevenz_cmd = path
+                break
+    
+    if sevenz_cmd:
+        try:
+            result = subprocess.run(
+                [sevenz_cmd, "a", "-t7z", "-mx=9", "-ms=on", str(sevenz_path), str(dist_folder)],
+                cwd=DIST_DIR,
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                sevenz_size_mb = sevenz_path.stat().st_size / (1024 * 1024)
+                compression_ratio = (1 - sevenz_size_mb / zip_size_mb) * 100
+                print(f"    ✓ {sevenz_path.name} ({sevenz_size_mb:.1f} MB, {compression_ratio:.1f}% smaller)")
+            else:
+                print(f"    ✗ 7z compression failed: {result.stderr}")
+                print("    → Only .zip archive will be available")
+        except Exception as e:
+            print(f"    ✗ 7z compression error: {e}")
+            print("    → Only .zip archive will be available")
+    else:
+        print(f"    ⚠ 7-Zip not found (install from https://www.7-zip.org/)")
+        print("    → Only .zip archive will be available")
+    
+    print(f"\n  Archive creation complete ✓")
 
 
-def verify_build():
+def summary():
+    """Print build summary."""
+    print_step(7, 7, "Build Summary")
+    
+    dist_folder = DIST_DIR / APP_NAME
+    zip_path = DIST_DIR / f"{APP_NAME}-v{VERSION}-windows-x64.zip"
+    sevenz_path = DIST_DIR / f"{APP_NAME}-v{VERSION}-windows-x64.7z"
+    
+    print("  Output files:")
+    print(f"    • Executable: dist/{APP_NAME}/{APP_NAME}.exe")
+    
+    if zip_path.exists():
+        size_mb = zip_path.stat().st_size / (1024 * 1024)
+        print(f"    • ZIP Archive: {zip_path.name} ({size_mb:.1f} MB)")
+    
+    if sevenz_path.exists():
+        size_mb = sevenz_path.stat().st_size / (1024 * 1024)
+        print(f"    • 7Z Archive: {sevenz_path.name} ({size_mb:.1f} MB)")
+    
+    print("\n  Upload to GitHub Release:")
+    print(f"    1. Primary: {zip_path.name} (everyone can open)")
+    if sevenz_path.exists():
+        print(f"    2. Optional: {sevenz_path.name} (smaller, requires 7-Zip)")
+    
+    print("\n  ✓ Build complete!")
     """Verify the build output."""
-    print_step(6, 6, "Verifying build")
+    print_step(6, 7, "Verifying build")
     
     dist_folder = DIST_DIR / APP_NAME
     exe_path = dist_folder / f"{APP_NAME}.exe"
     
     checks = [
         (exe_path, "Executable"),
-        (dist_folder / "cpplab" / "ui", "UI files"),
+        (dist_folder / "_internal" / "cpplab" / "ui", "UI files"),
+        (dist_folder / "_internal" / "cpplab" / "resources", "Resources"),
         (dist_folder / "docs_source", "Documentation"),
         (dist_folder / "compilers", "Compilers"),
         (dist_folder / "licenses", "Licenses"),
@@ -300,17 +370,13 @@ def main():
         run_pyinstaller()
         copy_resources()
         create_readme()
-        create_zip()
+        create_archives()
         verify_build()
+        summary()
         
         print(f"\n{'='*70}")
-        print("Build Complete!")
+        print("SUCCESS!")
         print(f"{'='*70}\n")
-        
-        print("Output:")
-        print(f"  Executable: dist/{APP_NAME}/{APP_NAME}.exe")
-        print(f"  Archive:    dist/{APP_NAME}-v{VERSION}-win64.zip")
-        print()
         
     except Exception as e:
         print(f"\n{'='*70}")
