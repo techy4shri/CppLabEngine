@@ -51,6 +51,7 @@ def run_pyinstaller():
         "--onedir",
         "--windowed",
         "--add-data", "src/cpplab/ui;cpplab/ui",
+        "--add-data", "src/cpplab/resources;cpplab/resources",
         "--add-data", "docs_source;docs_source",
         "src/cpplab/main.py"
     ]

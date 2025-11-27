@@ -8,6 +8,7 @@ import webbrowser
 import re
 from pathlib import Path
 from PyQt6 import uic
+from PyQt6.uic import loadUi
 from PyQt6.QtWidgets import (
     QMainWindow, QFileDialog, QMessageBox, QWidget, QPlainTextEdit, QComboBox, QLabel, QTableWidgetItem, QTextEdit
 )
@@ -27,7 +28,7 @@ from .widgets.project_explorer import ProjectExplorer
 from .dialogs import NewProjectDialog
 from .settings import AppSettings, load_settings, save_settings
 from .settings_dialog import SettingsDialog
-
+from .ui_utils import ui_path
 
 class BuildWorker(QObject):
     """Worker that runs build/check operations in a background thread."""
@@ -118,11 +119,7 @@ class MainWindow(QMainWindow):
         self.standalone_project_type: str = "console"  # console, graphics, or openmp
         
         # Load UI (works in both dev and frozen modes)
-        if getattr(sys, 'frozen', False):
-            ui_path = get_app_root() / "cpplab" / "ui" / "MainWindow.ui"
-        else:
-            ui_path = Path(__file__).parent / "ui" / "MainWindow.ui"
-        uic.loadUi(ui_path, self)
+        uic.loadUi(ui_path("MainWindow.ui"), self)
         
         self._setup_widgets()
         self._setup_combo_boxes()

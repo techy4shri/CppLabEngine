@@ -4,7 +4,8 @@ import sys
 from pathlib import Path
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QIcon
-from .app import MainWindow
+from cpplab.app import MainWindow
+from cpplab.ui_utils import resource_path
 
 
 def main():
@@ -13,7 +14,7 @@ def main():
     app.setOrganizationName("CppLabEngine")
     
     # Set application icon
-    icon_path = Path(__file__).parent / "resources"/ "logo.png"
+    icon_path = resource_path("logo.png")
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
     

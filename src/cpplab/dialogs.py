@@ -1,11 +1,10 @@
 # Dialog for creating new projects.
 
 import os
-import sys
 from pathlib import Path
 from PyQt6 import uic
 from PyQt6.QtWidgets import QDialog, QFileDialog
-from .core.toolchains import get_app_root
+from .ui_utils import ui_path
 
 
 class NewProjectDialog(QDialog):
@@ -14,11 +13,7 @@ class NewProjectDialog(QDialog):
         super().__init__(parent)
         
         # Load UI (works in both dev and frozen modes)
-        if getattr(sys, 'frozen', False):
-            ui_path = get_app_root() / "cpplab" / "ui" / "NewProjectDialog.ui"
-        else:
-            ui_path = Path(__file__).parent / "ui" / "NewProjectDialog.ui"
-        uic.loadUi(ui_path, self)
+        uic.loadUi(ui_path("NewProjectDialog.ui"), self)
         
         self.editLocation.setText(str(Path.home() / "CppLabProjects"))
         
