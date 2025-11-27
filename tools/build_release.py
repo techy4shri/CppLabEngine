@@ -3,6 +3,8 @@
 
 import os
 import sys
+import stat
+import time
 import shutil
 import subprocess
 import zipfile
@@ -26,10 +28,56 @@ def clean_build():
     """Remove previous build artifacts."""
     print_step(1, 6, "Cleaning previous builds")
     
+    def _on_rm_error(func, path, exc_info):
+        """Error handler for shutil.rmtree to attempt to fix permission issues.
+
+        Tries to make the file writable and retries the operation. If that
+        still fails, raises the original exception.
+        """
+        try:
+            os.chmod(path, stat.S_IWRITE)
+        except Exception:
+            pass
+        try:
+            func(path)
+            return
+        except Exception:
+            # If still failing, let caller handle / raise later
+            raise
+
+    def _rm_tree_force(path: Path):
+        """Attempt to remove a tree, with retries and helpful messages.
+
+        If removal fails due to active handles or permissions, attempt to
+        change permissions and retry. If still failing, attempt to rename
+        the directory out of the way. If that also fails, raise a
+        PermissionError with guidance.
+        """
+        try:
+            shutil.rmtree(path, onerror=_on_rm_error)
+            return
+        except Exception as exc:
+            # Try a short retry after a small pause (in case of antivirus)
+            time.sleep(0.2)
+            try:
+                shutil.rmtree(path, onerror=_on_rm_error)
+                return
+            except Exception:
+                # Try renaming the directory as a last resort
+                try:
+                    target = path.with_name(f"{path.name}_to_remove_{int(time.time())}")
+                    path.rename(target)
+                    print(f"  Renamed {path} -> {target}; will remove later")
+                    return
+                except Exception:
+                    raise PermissionError(
+                        f"Failed to remove {path!s}. Close any running programs using files inside and retry, or remove the folder manually. Original error: {exc}"
+                    )
+
     for path in [DIST_DIR, BUILD_DIR]:
         if path.exists():
             print(f"  Removing {path}/")
-            shutil.rmtree(path)
+            _rm_tree_force(path)
     
     spec_file = ROOT_DIR / f"{APP_NAME}.spec"
     if spec_file.exists():
@@ -222,7 +270,7 @@ LICENSE
 -------
 See licenses/ folder for CppLabEngine and bundled component licenses.
 
-© 2025 CppLab Project
+Built by 2025 Garima Shrivastava
 """
     
     readme_path = DIST_DIR / APP_NAME / "README.txt"
@@ -277,27 +325,30 @@ def create_archives():
     
     if sevenz_cmd:
         try:
+            # Use absolute path for the source folder to avoid cwd-relative issues
+            src_path = str(dist_folder.resolve())
             result = subprocess.run(
-                [sevenz_cmd, "a", "-t7z", "-mx=9", "-ms=on", str(sevenz_path), str(dist_folder)],
-                cwd=DIST_DIR,
+                [sevenz_cmd, "a", "-t7z", "-mx=9", "-ms=on", str(sevenz_path), src_path],
                 capture_output=True,
-                text=True
+                text=True,
             )
             if result.returncode == 0:
                 sevenz_size_mb = sevenz_path.stat().st_size / (1024 * 1024)
-                compression_ratio = (1 - sevenz_size_mb / zip_size_mb) * 100
+                compression_ratio = (1 - sevenz_size_mb / zip_size_mb) * 100 if zip_size_mb > 0 else 0
                 print(f"    ✓ {sevenz_path.name} ({sevenz_size_mb:.1f} MB, {compression_ratio:.1f}% smaller)")
             else:
-                print(f"    ✗ 7z compression failed: {result.stderr}")
+                out = (result.stdout or "").strip()
+                err = (result.stderr or "").strip()
+                print(f"    ✗ 7z compression failed: {err or out}")
                 print("    → Only .zip archive will be available")
         except Exception as e:
             print(f"    ✗ 7z compression error: {e}")
             print("    → Only .zip archive will be available")
     else:
-        print(f"    ⚠ 7-Zip not found (install from https://www.7-zip.org/)")
+        print(f"    7-Zip not found (install from https://www.7-zip.org/)")
         print("    → Only .zip archive will be available")
     
-    print(f"\n  Archive creation complete ✓")
+    print(f"\n  Archive creation complete!")
 
 
 def summary():
@@ -309,28 +360,31 @@ def summary():
     sevenz_path = DIST_DIR / f"{APP_NAME}-v{VERSION}-windows-x64.7z"
     
     print("  Output files:")
-    print(f"    • Executable: dist/{APP_NAME}/{APP_NAME}.exe")
+    print(f"    Executable: dist/{APP_NAME}/{APP_NAME}.exe")
     
     if zip_path.exists():
         size_mb = zip_path.stat().st_size / (1024 * 1024)
-        print(f"    • ZIP Archive: {zip_path.name} ({size_mb:.1f} MB)")
+        print(f"    ZIP Archive: {zip_path.name} ({size_mb:.1f} MB)")
     
     if sevenz_path.exists():
         size_mb = sevenz_path.stat().st_size / (1024 * 1024)
-        print(f"    • 7Z Archive: {sevenz_path.name} ({size_mb:.1f} MB)")
+        print(f"    7Z Archive: {sevenz_path.name} ({size_mb:.1f} MB)")
     
     print("\n  Upload to GitHub Release:")
     print(f"    1. Primary: {zip_path.name} (everyone can open)")
     if sevenz_path.exists():
         print(f"    2. Optional: {sevenz_path.name} (smaller, requires 7-Zip)")
     
-    print("\n  ✓ Build complete!")
+    print("\n  Build complete!")
+
+
+def verify_build() -> bool:
     """Verify the build output."""
     print_step(6, 7, "Verifying build")
-    
+
     dist_folder = DIST_DIR / APP_NAME
     exe_path = dist_folder / f"{APP_NAME}.exe"
-    
+
     checks = [
         (exe_path, "Executable"),
         (dist_folder / "_internal" / "cpplab" / "ui", "UI files"),
@@ -340,7 +394,7 @@ def summary():
         (dist_folder / "licenses", "Licenses"),
         (dist_folder / "README.txt", "README"),
     ]
-    
+
     all_ok = True
     for path, name in checks:
         if path.exists():
@@ -348,12 +402,12 @@ def summary():
         else:
             print(f"  ✗ {name}: MISSING at {path}")
             all_ok = False
-    
+
     if not all_ok:
         print("\n  WARNING: Some components are missing from the distribution!")
     else:
         print("\n  All components present ✓")
-    
+
     return all_ok
 
 
