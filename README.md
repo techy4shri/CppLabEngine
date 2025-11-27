@@ -1,14 +1,17 @@
-# CppLabEngine
-
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-green.svg)](https://www.gnu.org/licenses/gpl-3.0)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/techy4shri/CppLabEngine/total)
+[![](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/techy4shri)
+<!--[![](https://img.shields.io/static/v1?label=Buy%20me%20a%20coffee&message=%E2%9D%A4&logo=buymeacoffee&color=%23fe8e86)](https://www.buymeacoffee.com/cpvalente)-->
+# CppLabEngine 
 A dedicated offline C/C++ IDE for college students with bundled MinGW compilers, graphics.h support, and OpenMP.
 So I made this C/C++ IDE after being frustrated with Dev-Cpp (long live that software) and its inability to let me code in C++17/20 while working with omp.h and old graphics header. Now, this is by no means a proper alternative (in my unprofessional and inexperienced opinion) but, this works nicely, the app has extremely low build latency and runtime and most of all, it has support for both that legacy header and modern/shiny cpp which many students, including me learn.
 Look, I know you would rather go with VS Code, but I ain't got that in my college lab and so this is my solution. Use it, critic it, support it, or ignore it, your choice. Have a nice day and happy programming :D
 
 ## Downloads
 
-**Latest Release: v0.1.0**
+**Latest Release: v1.0.0**
 
-📦 [Download CppLabEngine-v0.1.0-win64.zip](https://github.com/techy4shri/CppLabEngine/releases)
+📦 [Download CppLabEngine-v1.0.0-win64.zip](https://github.com/techy4shri/CppLabEngine/releases/tag/v1.0.0)
 
 **Quick Start:**
 1. Download and extract the zip file anywhere on your computer
@@ -183,7 +186,6 @@ This is an early release focused on core functionality:
 - **Build Performance**: Builds may be slow on some systems
   - Recommendation: Add CppLabEngine folder to antivirus exclusions for faster builds
 - **Graphics + OpenMP**: Cannot use both features in same project (graphics requires 32-bit, OpenMP better on 64-bit)
-- **Limited Standards**: C++20/23 and C18/23 support depends on MinGW version bundled (experimental features may not work)
 
 ## Code Style
 
@@ -196,12 +198,12 @@ The codebase follows these conventions:
 ## Future Enhancements
 
 - [ ] Integrated debugger (GDB)
-- [ ] Linux and macOS support
+- [ ] Linux and macOS support (not in my agenda atm if I am being honest)
 - [ ] Auto-completion
 - [ ] Code templates library
 - [ ] Project templates
 - [x] Settings dialog for toolchain configuration
-- [ ] Git integration
+- [ ] Git integration (do we need this?)
 - [ ] Enhanced documentation browser
 
 ## Requirements
@@ -217,7 +219,13 @@ The codebase follows these conventions:
 
 ## License
 
-See [LICENSE](/LICENSE) file for details.
+The source code of Cpp Lab Engine is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.  
+See the [LICENSE](LICENSE) file for full text.
+
+This project also bundles third-party components under their own licenses, including (but not limited to):
+
+- PyQt6 (GPL-3.0/commercial)
+- MinGW-w64 / GCC toolchains (GPL/LGPL)
 
 ## Contributing
 
