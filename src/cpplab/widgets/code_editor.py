@@ -2,7 +2,7 @@
 
 import re
 from PyQt6.QtWidgets import QPlainTextEdit
-from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont
+from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont, QTextCursor
 from PyQt6.QtCore import Qt, QRegularExpression, QTimer
 from typing import Optional
 
@@ -117,11 +117,16 @@ class CodeEditor(QPlainTextEdit):
         self.file_path: Optional[str] = None
         self.is_modified = False
         
+        # Indentation settings (defaults, will be updated by app)
+        self.tab_size = 4
+        self.use_spaces = True
+        self.auto_indent = True
+        
         font = QFont("Consolas", 10)
         font.setStyleHint(QFont.StyleHint.Monospace)
         self.setFont(font)
         
-        self.setTabStopDistance(40)
+        self._update_tab_stop_distance()
         
         # Use fast syntax highlighter with Trie
         self.highlighter = FastSyntaxHighlighter(self.document())
@@ -132,6 +137,221 @@ class CodeEditor(QPlainTextEdit):
         self.highlight_timer.timeout.connect(self._delayed_highlight)
         
         self.textChanged.connect(self._on_text_changed)
+    
+    def _update_tab_stop_distance(self):
+        """Update tab stop distance based on tab size setting."""
+        # Get the width of a space character
+        font_metrics = self.fontMetrics()
+        space_width = font_metrics.horizontalAdvance(' ')
+        self.setTabStopDistance(space_width * self.tab_size)
+    
+    def update_indentation_settings(self, tab_size: int, use_spaces: bool, auto_indent: bool):
+        """Update indentation settings from app settings."""
+        self.tab_size = tab_size
+        self.use_spaces = use_spaces
+        self.auto_indent = auto_indent
+        self._update_tab_stop_distance()
+    
+    def keyPressEvent(self, event):
+        """Handle key press events for proper indentation."""
+        # Handle Tab key
+        if event.key() == Qt.Key.Key_Tab:
+            self._handle_tab()
+            return
+        
+        # Handle Shift+Tab (unindent)
+        if event.key() == Qt.Key.Key_Backtab:
+            self._handle_backtab()
+            return
+        
+        # Handle Enter/Return for auto-indent
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if self.auto_indent:
+                self._handle_return_with_indent()
+                return
+        
+        # Default behavior for other keys
+        super().keyPressEvent(event)
+    
+    def _handle_tab(self):
+        """Handle Tab key press - insert spaces or tab based on settings."""
+        cursor = self.textCursor()
+        
+        # Check if there's a selection
+        if cursor.hasSelection():
+            # Indent selected lines
+            self._indent_selection(cursor)
+        else:
+            # Insert tab or spaces at cursor
+            if self.use_spaces:
+                # Calculate spaces needed to reach next tab stop
+                column = cursor.columnNumber()
+                spaces_to_insert = self.tab_size - (column % self.tab_size)
+                cursor.insertText(' ' * spaces_to_insert)
+            else:
+                cursor.insertText('\t')
+    
+    def _handle_backtab(self):
+        """Handle Shift+Tab - unindent."""
+        cursor = self.textCursor()
+        
+        if cursor.hasSelection():
+            # Unindent selected lines
+            self._unindent_selection(cursor)
+        else:
+            # Remove indentation at cursor
+            self._unindent_line(cursor)
+    
+    def _indent_selection(self, cursor):
+        """Indent all lines in the selection."""
+        # Get selection start and end
+        start = cursor.selectionStart()
+        end = cursor.selectionEnd()
+        
+        # Move to start of selection
+        cursor.setPosition(start)
+        cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
+        
+        # Get the block at start and end
+        start_block = cursor.block()
+        cursor.setPosition(end)
+        end_block = cursor.block()
+        
+        # Prepare indentation string
+        indent_str = ' ' * self.tab_size if self.use_spaces else '\t'
+        
+        # Start edit block for undo/redo
+        cursor.beginEditBlock()
+        
+        # Iterate through all blocks in selection
+        cursor.setPosition(start_block.position())
+        while True:
+            cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
+            cursor.insertText(indent_str)
+            
+            if cursor.block() == end_block:
+                break
+            
+            if not cursor.movePosition(QTextCursor.MoveOperation.NextBlock):
+                break
+        
+        cursor.endEditBlock()
+    
+    def _unindent_selection(self, cursor):
+        """Unindent all lines in the selection."""
+        # Get selection start and end
+        start = cursor.selectionStart()
+        end = cursor.selectionEnd()
+        
+        # Move to start of selection
+        cursor.setPosition(start)
+        cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
+        
+        # Get the block at start and end
+        start_block = cursor.block()
+        cursor.setPosition(end)
+        end_block = cursor.block()
+        
+        # Start edit block for undo/redo
+        cursor.beginEditBlock()
+        
+        # Iterate through all blocks in selection
+        cursor.setPosition(start_block.position())
+        while True:
+            cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
+            self._remove_indentation_from_line(cursor)
+            
+            if cursor.block() == end_block:
+                break
+            
+            if not cursor.movePosition(QTextCursor.MoveOperation.NextBlock):
+                break
+        
+        cursor.endEditBlock()
+    
+    def _unindent_line(self, cursor):
+        """Unindent the current line."""
+        cursor.beginEditBlock()
+        cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
+        self._remove_indentation_from_line(cursor)
+        cursor.endEditBlock()
+    
+    def _remove_indentation_from_line(self, cursor):
+        """Remove one level of indentation from the current line."""
+        line_text = cursor.block().text()
+        
+        if not line_text:
+            return
+        
+        # Count leading whitespace
+        leading_spaces = len(line_text) - len(line_text.lstrip(' \t'))
+        
+        if leading_spaces == 0:
+            return
+        
+        # Determine how much to remove
+        if self.use_spaces:
+            # Remove up to tab_size spaces
+            to_remove = min(self.tab_size, leading_spaces)
+            
+            # Count actual spaces (not tabs)
+            space_count = 0
+            for char in line_text[:leading_spaces]:
+                if char == ' ':
+                    space_count += 1
+                    if space_count >= to_remove:
+                        break
+                elif char == '\t':
+                    # Treat tab as one indentation level
+                    to_remove = 1
+                    break
+            
+            to_remove = min(to_remove, space_count) if space_count > 0 else (1 if '\t' in line_text[:leading_spaces] else 0)
+        else:
+            # Remove one tab or up to tab_size spaces
+            if line_text[0] == '\t':
+                to_remove = 1
+            else:
+                to_remove = min(self.tab_size, leading_spaces)
+        
+        # Remove the indentation
+        if to_remove > 0:
+            cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor, to_remove)
+            cursor.removeSelectedText()
+    
+    def _handle_return_with_indent(self):
+        """Handle Return key with auto-indentation."""
+        cursor = self.textCursor()
+        
+        # Get current line
+        current_line = cursor.block().text()
+        
+        # Calculate indentation of current line
+        indent = self._get_line_indentation(current_line)
+        
+        # Check if line ends with opening brace - add extra indent
+        stripped = current_line.rstrip()
+        extra_indent = ''
+        if stripped.endswith('{') or stripped.endswith(':'):
+            extra_indent = ' ' * self.tab_size if self.use_spaces else '\t'
+        
+        # Insert newline and indentation
+        cursor.insertText('\n' + indent + extra_indent)
+    
+    def _get_line_indentation(self, line: str) -> str:
+        """Get the indentation string from a line."""
+        indent = ''
+        for char in line:
+            if char in ' \t':
+                indent += char
+            else:
+                break
+        
+        # Convert tabs to spaces if using spaces
+        if self.use_spaces and '\t' in indent:
+            indent = indent.replace('\t', ' ' * self.tab_size)
+        
+        return indent
     
     def _schedule_highlight(self):
         """Schedule delayed highlight to reduce CPU during rapid typing."""

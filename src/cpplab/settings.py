@@ -14,6 +14,10 @@ class AppSettings:
     build_output_bold: bool = True
     incremental_builds: bool = True
     show_build_elapsed: bool = True
+    # Editor settings
+    tab_size: int = 4  # Number of spaces per tab
+    use_spaces: bool = True  # Use spaces instead of tabs
+    auto_indent: bool = True  # Automatically indent new lines
 
 
 def _get_settings_path() -> Path:

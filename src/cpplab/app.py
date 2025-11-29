@@ -750,6 +750,13 @@ int main() {
             editor.load_file(abs_path)
             editor.textChanged.connect(lambda: self._on_editor_modified(editor))
             
+            # Apply indentation settings
+            editor.update_indentation_settings(
+                self.settings.tab_size,
+                self.settings.use_spaces,
+                self.settings.auto_indent
+            )
+            
             tab_name = Path(abs_path).name
             idx = self.editorTabWidget.addTab(editor, tab_name)
             self.editorTabWidget.setCurrentIndex(idx)
@@ -1184,6 +1191,14 @@ int main() {
             try:
                 editor = CodeEditor()
                 editor.load_file(str(file_path))
+                
+                # Apply indentation settings
+                editor.update_indentation_settings(
+                    self.settings.tab_size,
+                    self.settings.use_spaces,
+                    self.settings.auto_indent
+                )
+                
                 tab_name = file_path.name
                 self.editorTabWidget.addTab(editor, tab_name)
                 self.editorTabWidget.setCurrentWidget(editor)
@@ -1470,6 +1485,14 @@ int main() {
         else:
             # Classic theme - use default styling
             self.setStyleSheet("")
+        
+        # Apply indentation settings to all open editors
+        for editor in self.open_editors.values():
+            editor.update_indentation_settings(
+                self.settings.tab_size,
+                self.settings.use_spaces,
+                self.settings.auto_indent
+            )
         
         # Store build-related settings for use in build operations
         # (accessed later in build methods)
