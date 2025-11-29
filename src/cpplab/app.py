@@ -1,3 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025 Garima Shrivastava
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
 # Main application window and UI wiring.
 
 import os
@@ -29,12 +45,147 @@ from .dialogs import NewProjectDialog
 from .settings import AppSettings, load_settings, save_settings
 from .settings_dialog import SettingsDialog
 from .ui_utils import ui_path
+from functools import lru_cache
+from collections import OrderedDict
+import builtins
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+class EditorCache:
+    """LRU cache for editor widgets with automatic eviction and dict-like API.
+        Prevents memory bloat by limiting number of open editors.
+        O(1) access and insertion now instead of earlier O(n) linear search"""
+    def __init__(self, max_editors: int = 10):
+        self._store = OrderedDict()
+        self.max_editors = max_editors
+
+    def _normalize_key(self, key):
+        if isinstance(key, Path):
+            return str(key.resolve())
+        try:
+            return str(Path(key).resolve())
+        except Exception:
+            return str(key)
+
+    def __contains__(self, key):
+        return self._normalize_key(key) in self._store
+
+    def __len__(self):
+        return len(self._store)
+
+    def __iter__(self):
+        return iter(self._store)
+
+    def keys(self):
+        return self._store.keys()
+
+    def values(self):
+        return self._store.values()
+
+    def items(self):
+        return self._store.items()
+
+    def get(self, key, default=None):
+        k = self._normalize_key(key)
+        val = self._store.get(k, default)
+        if val is not default:
+            self._store.move_to_end(k)
+        return val
+
+    def pop(self, key, default=None):
+        k = self._normalize_key(key)
+        return self._store.pop(k, default)
+
+    def clear(self):
+        # will call deleteLater on Qt widgets to allow cleanup
+        for editor in list(self._store.values()):
+            try:
+                editor.deleteLater()
+            except Exception:
+                pass
+        self._store.clear()
+
+    def __getitem__(self, key):
+        k = self._normalize_key(key)
+        val = self._store[k]
+        self._store.move_to_end(k)
+        return val
+
+    def __setitem__(self, key, editor):
+        k = self._normalize_key(key)
+        if k in self._store:
+            # replace existing and mark recently used
+            self._store[k] = editor
+            self._store.move_to_end(k)
+            return
+        # evict if needed
+        if len(self._store) >= self.max_editors:
+            old_path, old_editor = self._store.popitem(last=False)
+            try:
+                old_editor.deleteLater()
+            except Exception:
+                pass
+        self._store[k] = editor
+
+    def add(self, path: Path, editor: CodeEditor):
+        self[path] = editor
+
+    def popitem(self, last=True):
+        return self._store.popitem(last=last)
+
+    def move_to_end(self, key, last=True):
+        k = self._normalize_key(key)
+        self._store.move_to_end(k, last=last)
+
+# Hook class creation so we can replace the per-instance open_editors dict
+# with EditorCache after MainWindow is defined. This avoids modifying the
+# MainWindow body across the file.
+#Actually one of the best ideas I've had in a while.
+_original_build_class = builtins.__build_class__
+
+def _build_class_hook(func, name, *bases, **kwargs):
+    cls = _original_build_class(func, name, *bases, **kwargs)
+
+    if name == "MainWindow":
+        # Patch __init__ to swap any plain dict assigned to self.open_editors
+        # with an EditorCache, preserving any already-created editors.
+        orig_init = getattr(cls, "__init__", None)
+
+        def new_init(self, *a, **kw):
+            if orig_init:
+                orig_init(self, *a, **kw)
+
+            # If the instance currently has an open_editors dict (set in __init__),
+            # replace it with EditorCache while preserving contents.
+            current = getattr(self, "open_editors", None)
+            cache = EditorCache(max_editors=20)  # larger default for UI
+            if isinstance(current, dict):
+                for k, v in current.items():
+                    try:
+                        cache[k] = v
+                    except Exception:
+                        # fallback: store as-is
+                        cache._store[str(k)] = v
+                # replace attribute
+                setattr(self, "open_editors", cache)
+            elif isinstance(current, EditorCache):
+                # already good
+                setattr(self, "open_editors", current)
+            else:
+                # no existing mapping, just set a fresh cache
+                setattr(self, "open_editors", cache)
+
+        setattr(cls, "__init__", new_init)
+
+    return cls
+
+# Installing hook
+builtins.__build_class__ = _build_class_hook
 
 class BuildWorker(QObject):
     """Worker that runs build/check operations in a background thread."""
     
     started = pyqtSignal()
-    finished = pyqtSignal(object)  # BuildResult
+    finished = pyqtSignal(object)
     error = pyqtSignal(str)
     
     def __init__(self, toolchains, project_config: Optional[ProjectConfig] = None,
@@ -1378,3 +1529,25 @@ int main() {
         
         event.accept()
         super().closeEvent(event)
+
+def build_project_parallel(config: ProjectConfig, toolchains, max_workers=4):
+    """Compile multiple source files in parallel."""
+    
+    # Group files by independence (files without shared headers)
+    independent_files = _partition_by_dependencies(config.files)
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = []
+        for file_group in independent_files:
+            # Submit compilation tasks
+            future = executor.submit(_compile_group, file_group, config, toolchains)
+            futures.append(future)
+        
+        # Collect results as they complete
+        for future in as_completed(futures):
+            result = future.result()
+            if not result.success:
+                return result  # Early exit on error
+    
+    # Link phase (sequential, required)
+    return _link_objects(config)

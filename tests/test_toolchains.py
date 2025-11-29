@@ -7,6 +7,14 @@ from src.cpplab.core.toolchains import get_toolchains, select_toolchain, Toolcha
 from src.cpplab.core.project_config import ProjectConfig
 
 
+@pytest.fixture(autouse=True)
+def clear_toolchain_cache():
+    """Clear the LRU cache before each test."""
+    get_toolchains.cache_clear()
+    yield
+    get_toolchains.cache_clear()
+
+
 def _make_config(name, language="cpp", standard="c++17", project_type="console", 
                  graphics=False, openmp=False, toolchain_preference="auto"):
     """Helper to create ProjectConfig for tests."""
@@ -54,7 +62,6 @@ def test_get_toolchains_detects_both(fake_app_root):
         assert toolchains["mingw32"].bin_dir == fake_app_root / "compilers" / "mingw32" / "bin"
         assert toolchains["mingw64"].bin_dir == fake_app_root / "compilers" / "mingw64" / "bin"
 
-
 def test_get_toolchains_missing_toolchains(tmp_path):
     """Verify get_toolchains returns toolchains even when directories don't exist."""
     empty_root = tmp_path / "Empty"
@@ -66,7 +73,6 @@ def test_get_toolchains_missing_toolchains(tmp_path):
         # Actual existence is checked by is_available() method
         assert "mingw32" in toolchains
         assert "mingw64" in toolchains
-
 
 def test_select_toolchain_graphics_forces_mingw32():
     """Graphics projects always use mingw32."""
@@ -89,7 +95,7 @@ def test_select_toolchain_graphics_forces_mingw32():
         name="GraphicsTest",
         project_type="graphics",
         graphics=True,
-        toolchain_preference="mingw64"  # User preference should be ignored
+        toolchain_preference="mingw64"  # User preference should be ignored, this is a test
     )
     
     # Mock is_available to always return True for tests

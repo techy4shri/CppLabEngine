@@ -1,6 +1,7 @@
 # Toolchain abstraction: locates bundled MinGW compilers and selects the right one for a project.
 
 import sys
+from functools import lru_cache
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
@@ -44,7 +45,9 @@ def get_app_root() -> Path:
         return Path(__file__).parent.parent.parent.parent
 
 
+@lru_cache(maxsize=1)
 def get_toolchains() -> dict[str, ToolchainConfig]:
+    """Get available toolchains. Cached for instant access after first call."""
     app_root = get_app_root()
     compilers_dir = app_root / "compilers"
     
@@ -65,6 +68,9 @@ def get_toolchains() -> dict[str, ToolchainConfig]:
     
     return toolchains
 
+def intern_path(path: Path) -> Path:
+    """Deduplicate path objects to save memory using string interning."""
+    return Path(sys.intern(str(path)))
 
 def select_toolchain(project_config, toolchains: Optional[dict[str, ToolchainConfig]] = None) -> ToolchainConfig:
     if toolchains is None:
@@ -75,8 +81,7 @@ def select_toolchain(project_config, toolchains: Optional[dict[str, ToolchainCon
         project_config.project_type == "graphics" or 
         project_config.features.get("graphics", False)
     )
-    
-    # Graphics projects ALWAYS use mingw32 (32-bit), regardless of preference
+    # Graphics projects ALWAYS use mingw32 (32-bit), regardless of preference because that's not a preference, that's an atrocity but an obligation.
     if uses_graphics:
         selected = toolchains["mingw32"]
     else:

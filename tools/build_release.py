@@ -120,12 +120,38 @@ def copy_resources():
     
     dist_root = DIST_DIR / APP_NAME
     
-    # Copy compilers (required)
+    # Copy compilers (required) - exclude unnecessary bloat
     compilers_src = ROOT_DIR / "compilers"
     compilers_dst = dist_root / "compilers"
     if compilers_src.exists():
-        print(f"  Copying compilers/")
-        shutil.copytree(compilers_src, compilers_dst, dirs_exist_ok=True)
+        print(f"  Copying compilers/ (excluding unnecessary files for size reduction)...")
+        
+        # Directories and file patterns to exclude (reduce from 1.4GB to ~100-150MB)
+        def ignore_patterns(dir, files):
+            """Ignore patterns for compiler copy - exclude docs, man pages, static libs, Python, etc."""
+            ignored = set()
+            for f in files:
+                full_path = Path(dir) / f
+                # Skip entire directories
+                if full_path.is_dir():
+                    if f in ['share', 'man', 'doc', 'info', 'locale', 'terminfo', 'zoneinfo', 
+                             'python3.12', 'tcl8.6', 'tk8.6']:
+                        ignored.add(f)
+                # Skip file patterns
+                elif f.endswith(('.a', '.la', '.pyc', '.pyo', '.gz', '.bz2', '.xz',
+                                '.mo', '.pot', '.po', '.gmo', '.html', '.pdf',
+                                '.man', '.txt.gz', '.3', '.1', '.info')):
+                    ignored.add(f)
+                # Keep only essential .txt files
+                elif f.endswith('.txt') and f.lower() not in ['readme.txt', 'license.txt', 'copying.txt']:
+                    ignored.add(f)
+            return ignored
+        
+        shutil.copytree(compilers_src, compilers_dst, ignore=ignore_patterns, dirs_exist_ok=True)
+        
+        # Report size savings
+        size_mb = sum(f.stat().st_size for f in compilers_dst.rglob('*') if f.is_file()) / (1024 * 1024)
+        print(f"  Compilers copied (stripped): {size_mb:.1f} MB")
     else:
         print("  WARNING: compilers/ not found (required for distribution!)")
     
@@ -285,8 +311,26 @@ def create_archives():
     
     dist_folder = DIST_DIR / APP_NAME
     
+    # Clean up unnecessary files before archiving
+    print(f"  Cleaning unnecessary files from distribution...")
+    removed_count = 0
+    removed_size = 0
+    
+    # Remove .pyc files (Python bytecode - not needed, will be regenerated)
+    for pyc_file in dist_folder.rglob('*.pyc'):
+        removed_size += pyc_file.stat().st_size
+        pyc_file.unlink()
+        removed_count += 1
+    
+    # Remove __pycache__ directories
+    for pycache in dist_folder.rglob('__pycache__'):
+        if pycache.is_dir():
+            shutil.rmtree(pycache, ignore_errors=True)
+    
+    print(f"    Removed {removed_count} .pyc files ({removed_size / (1024*1024):.1f} MB)")
+    
     # Create standard .zip (maximum compatibility)
-    print(f"  Creating .zip archive (standard compression)...")
+    print(f"\n  Creating .zip archive (standard compression)...")
     zip_name = f"{APP_NAME}-v{VERSION}-windows-x64.zip"
     zip_path = DIST_DIR / zip_name
     
