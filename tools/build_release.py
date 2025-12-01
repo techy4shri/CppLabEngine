@@ -26,7 +26,7 @@ def print_step(step_num, total, message):
 
 def clean_build():
     """Remove previous build artifacts."""
-    print_step(1, 6, "Cleaning previous builds")
+    print_step(1, 8, "Cleaning previous builds")
     
     def _on_rm_error(func, path, exc_info):
         """Error handler for shutil.rmtree to attempt to fix permission issues.
@@ -89,7 +89,7 @@ def clean_build():
 
 def run_pyinstaller():
     """Build executable with PyInstaller."""
-    print_step(2, 6, "Building executable with PyInstaller")
+    print_step(2, 8, "Building executable with PyInstaller")
     
     cmd = [
         sys.executable, "-m", "PyInstaller",
@@ -116,7 +116,7 @@ def run_pyinstaller():
 
 def copy_resources():
     """Copy compilers, examples, and licenses to distribution."""
-    print_step(3, 6, "Copying resources")
+    print_step(3, 8, "Copying resources")
     
     dist_root = DIST_DIR / APP_NAME
     
@@ -124,45 +124,24 @@ def copy_resources():
     compilers_src = ROOT_DIR / "compilers"
     compilers_dst = dist_root / "compilers"
     if compilers_src.exists():
-        print(f"  Copying compilers/ (excluding unnecessary files for size reduction)...")
-        
-        # Directories and file patterns to exclude (reduce from 1.4GB to ~100-150MB)
-        def ignore_patterns(dir, files):
-            """Ignore patterns for compiler copy - exclude docs, man pages, static libs, Python, etc."""
-            ignored = set()
-            for f in files:
-                full_path = Path(dir) / f
-                # Skip entire directories
-                if full_path.is_dir():
-                    if f in ['share', 'man', 'doc', 'info', 'locale', 'terminfo', 'zoneinfo', 
-                             'python3.12', 'tcl8.6', 'tk8.6']:
-                        ignored.add(f)
-                # Skip file patterns
-                elif f.endswith(('.a', '.la', '.pyc', '.pyo', '.gz', '.bz2', '.xz',
-                                '.mo', '.pot', '.po', '.gmo', '.html', '.pdf',
-                                '.man', '.txt.gz', '.3', '.1', '.info')):
-                    ignored.add(f)
-                # Keep only essential .txt files
-                elif f.endswith('.txt') and f.lower() not in ['readme.txt', 'license.txt', 'copying.txt']:
-                    ignored.add(f)
-            return ignored
-        
-        shutil.copytree(compilers_src, compilers_dst, ignore=ignore_patterns, dirs_exist_ok=True)
+        print(f"  Copying compilers")
+        #going back to previous method of copying without ignoring patterns
+        shutil.copytree(compilers_src, compilers_dst, dirs_exist_ok=True)
         
         # Report size savings
         size_mb = sum(f.stat().st_size for f in compilers_dst.rglob('*') if f.is_file()) / (1024 * 1024)
-        print(f"  Compilers copied (stripped): {size_mb:.1f} MB")
+        print(f"  Compilers copied: {size_mb:.1f} MB")
     else:
         print("  WARNING: compilers/ not found (required for distribution!)")
     
     # Copy examples (optional)
-    examples_src = ROOT_DIR / "examples"
-    examples_dst = dist_root / "examples"
-    if examples_src.exists():
-        print(f"  Copying examples/")
-        shutil.copytree(examples_src, examples_dst, dirs_exist_ok=True)
-    else:
-        print("  WARNING: examples/ not found (skipping)")
+    #examples_src = ROOT_DIR / "examples"
+    #examples_dst = dist_root / "examples"
+    #if examples_src.exists():
+    #    print(f"  Copying examples/")
+    #    shutil.copytree(examples_src, examples_dst, dirs_exist_ok=True)
+    #else:
+        #print("  WARNING: examples/ not found (skipping)")
     
     # Create licenses directory
     licenses_dst = dist_root / "licenses"
@@ -211,7 +190,7 @@ def copy_resources():
 
 def create_readme():
     """Create end-user README.txt."""
-    print_step(4, 6, "Creating README.txt")
+    print_step(4, 8, "Creating README.txt")
     
     readme_content = f"""CppLabEngine v{VERSION}
 {'='*70}
@@ -296,7 +275,7 @@ LICENSE
 -------
 See licenses/ folder for CppLabEngine and bundled component licenses.
 
-Built by 2025 Garima Shrivastava
+Built by Garima Shrivastava
 """
     
     readme_path = DIST_DIR / APP_NAME / "README.txt"
@@ -305,9 +284,139 @@ Built by 2025 Garima Shrivastava
     print(f"  Created {readme_path} ✓")
 
 
+def sign_executable():
+    """Optionally sign the built executable using a PFX certificate or GPG key.
+
+    Behavior:
+    - If SIGN_PFX and SIGN_PFX_PASSWORD are set, use PFX certificate (removes "Unknown publisher")
+    - If SIGN_GPG_KEY is set, use GPG to create a detached signature (.sig file)
+    - If none are set, signing is skipped (no-op)
+
+    Notes for PFX signing:
+    - Use a certificate issued by a trusted CA to remove "Unknown publisher" warnings
+    - Self-signed certificates will still show warnings
+    - Recommended timestamp server: http://timestamp.digicert.com
+    
+    Notes for GPG signing:
+    - Creates a .sig file that users can verify with: gpg --verify CppLabEngine.exe.sig CppLabEngine.exe
+    - Does NOT remove "Unknown publisher" warnings (only Authenticode/PFX signing does that)
+    - Useful for integrity verification and open-source trust
+    - SSH keys cannot be used to sign Windows executables
+    """
+    print_step(5, 8, "Code signing (optional)")
+
+    exe_path = DIST_DIR / APP_NAME / f"{APP_NAME}.exe"
+    if not exe_path.exists():
+        print(f"  Executable not found at {exe_path} — skipping signing")
+        return
+
+    # Check for PFX certificate signing
+    pfx = os.environ.get("SIGN_PFX")
+    pfx_pass = os.environ.get("SIGN_PFX_PASSWORD")
+    timestamp = os.environ.get("SIGN_TIMESTAMP_URL", "http://timestamp.digicert.com")
+
+    # Check for GPG signing
+    gpg_key = os.environ.get("SIGN_GPG_KEY")
+
+    if not pfx and not gpg_key:
+        print("  No signing credentials found (SIGN_PFX or SIGN_GPG_KEY) — skipping code signing")
+        return
+
+    # Try PFX/Authenticode signing first (removes Windows warnings)
+    if pfx and pfx_pass:
+        print("  Attempting Authenticode signing with PFX certificate...")
+        
+        # Try signtool (recommended on Windows)
+        signtool = shutil.which("signtool") or shutil.which("signtool.exe")
+        if signtool:
+            cmd = [
+                signtool,
+                "sign",
+                "/f", str(pfx),
+                "/p", pfx_pass,
+                "/tr", timestamp,
+                "/td", "sha256",
+                "/fd", "sha256",
+                str(exe_path),
+            ]
+            print(f"  Running: signtool sign /f ... /tr {timestamp} ...")
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0:
+                print("  ✓ Authenticode signing complete (removes 'Unknown publisher' warning)")
+                return
+            else:
+                print("  ✗ signtool failed:")
+                print(res.stdout)
+                print(res.stderr)
+
+        # Fallback: try osslsigncode
+        ossl = shutil.which("osslsigncode")
+        if ossl:
+            tmp_out = exe_path.with_suffix(".signed.exe")
+            cmd = [
+                ossl,
+                "sign",
+                "-pkcs12", str(pfx),
+                "-pass", pfx_pass,
+                "-n", APP_NAME,
+                "-in", str(exe_path),
+                "-out", str(tmp_out),
+            ]
+            if timestamp:
+                cmd += ["-t", timestamp]
+
+            print(f"  Running: osslsigncode sign ...")
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0 and tmp_out.exists():
+                try:
+                    tmp_out.replace(exe_path)
+                    print("  ✓ Authenticode signing complete via osslsigncode")
+                    return
+                except Exception as e:
+                    print(f"  ✗ Failed to replace exe: {e}")
+            else:
+                print("  ✗ osslsigncode failed:")
+                print(res.stdout)
+                print(res.stderr)
+
+        print("  ✗ Authenticode signing failed (signtool/osslsigncode not found or failed)")
+
+    # Try GPG signing (creates .sig file for verification)
+    if gpg_key:
+        print("  Attempting GPG signature...")
+        gpg = shutil.which("gpg") or shutil.which("gpg.exe")
+        if gpg:
+            sig_path = exe_path.with_suffix(".exe.sig")
+            cmd = [
+                gpg,
+                "--detach-sign",
+                "--armor",
+                "--default-key", gpg_key,
+                "--output", str(sig_path),
+                str(exe_path),
+            ]
+            print(f"  Running: gpg --detach-sign --armor --default-key {gpg_key} ...")
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0 and sig_path.exists():
+                print(f"  ✓ GPG signature created: {sig_path.name}")
+                print(f"  Users can verify with: gpg --verify {sig_path.name} {exe_path.name}")
+                return
+            else:
+                print("  ✗ GPG signing failed:")
+                print(res.stdout)
+                print(res.stderr)
+        else:
+            print("  ✗ GPG not found in PATH")
+
+    print("\n  WARNING: All signing attempts failed. The executable remains unsigned.")
+    print("  To sign with PFX: Install Windows SDK (signtool) or osslsigncode, set SIGN_PFX and SIGN_PFX_PASSWORD")
+    print("  To sign with GPG: Install GPG, set SIGN_GPG_KEY to your key ID")
+    print("  Note: Only Authenticode (PFX) signing removes 'Unknown publisher' warnings on Windows.")
+
+
 def create_archives():
     """Create release archives (both .zip and .7z)."""
-    print_step(5, 7, "Creating release archives")
+    print_step(6, 8, "Creating release archives")
     
     dist_folder = DIST_DIR / APP_NAME
     
@@ -397,7 +506,7 @@ def create_archives():
 
 def summary():
     """Print build summary."""
-    print_step(7, 7, "Build Summary")
+    print_step(8, 8, "Build Summary")
     
     dist_folder = DIST_DIR / APP_NAME
     zip_path = DIST_DIR / f"{APP_NAME}-v{VERSION}-windows-x64.zip"
@@ -424,7 +533,7 @@ def summary():
 
 def verify_build() -> bool:
     """Verify the build output."""
-    print_step(6, 7, "Verifying build")
+    print_step(7, 8, "Verifying build")
 
     dist_folder = DIST_DIR / APP_NAME
     exe_path = dist_folder / f"{APP_NAME}.exe"
@@ -468,6 +577,8 @@ def main():
         run_pyinstaller()
         copy_resources()
         create_readme()
+        # Optional: sign the built executable if SIGN_PFX and SIGN_PFX_PASSWORD are set
+        sign_executable()
         create_archives()
         verify_build()
         summary()

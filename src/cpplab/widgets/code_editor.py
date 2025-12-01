@@ -3,7 +3,7 @@
 import re
 from PyQt6.QtWidgets import QPlainTextEdit
 from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont, QTextCursor
-from PyQt6.QtCore import Qt, QRegularExpression, QTimer
+from PyQt6.QtCore import Qt, QRegularExpression, QTimer, pyqtSignal
 from typing import Optional
 
 
@@ -111,6 +111,9 @@ class FastSyntaxHighlighter(QSyntaxHighlighter):
             self.setFormat(start, end - start, preprocessor_fmt)
 
 class CodeEditor(QPlainTextEdit):
+    
+    # Signal emitted when the modified state changes
+    modificationChanged = pyqtSignal(bool)  # True if modified, False if saved
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -363,21 +366,46 @@ class CodeEditor(QPlainTextEdit):
         self.highlighter.rehighlight()
     
     def load_file(self, file_path: str):
+        """Load file content and reset modification state."""
+        self._loading = True  # Flag to prevent marking as modified during load
+        
+        # Temporarily disconnect textChanged to prevent it from firing during setPlainText
+        self.textChanged.disconnect(self._on_text_changed)
+        
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
         self.setPlainText(content)
         self.file_path = file_path
+        
+        # Mark both our flag and Qt's document as unmodified
+        self.document().setModified(False)
         self.is_modified = False
+        
+        # Reconnect textChanged signal
+        self.textChanged.connect(self._on_text_changed)
+        self._loading = False
     
     def save_file(self):
         if not self.file_path:
             return
+        
         with open(self.file_path, "w", encoding="utf-8") as f:
             f.write(self.toPlainText())
+        
+        # Mark document as unmodified and set our flag
+        self.document().setModified(False)
         self.is_modified = False
+        print(f"[CodeEditor] save_file: Emitting modificationChanged(False) for {self.file_path}")
+        self.modificationChanged.emit(False)  # Notify that file is no longer modified
     
     def _on_text_changed(self):
-        if self.file_path:
-            self.is_modified = True
+        # Only set modified if we have a file path AND the document has been loaded
+        # Also check if document is actually modified (not just spurious textChanged)
+        if self.file_path and not getattr(self, '_loading', False):
+            # Only mark as modified if document is actually modified
+            if self.document().isModified() and not self.is_modified:
+                self.is_modified = True
+                print(f"[CodeEditor] _on_text_changed: Emitting modificationChanged(True) for {self.file_path}")
+                self.modificationChanged.emit(True)
         # Schedule debounced highlight
         self._schedule_highlight()

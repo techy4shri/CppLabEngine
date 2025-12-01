@@ -579,6 +579,10 @@ def run_executable(config: ProjectConfig, toolchains: dict[str, ToolchainConfig]
     
     try:
         # Run and capture output
+        # NOTE: This function is NOT used for console programs that need input.
+        # Console programs are launched in external terminals (see app.py run_current).
+        # This is only called for graphics/OpenMP programs that run detached.
+        #reverting to external terminal for all because of too many cases where stdin is needed
         t0 = time.perf_counter()
         process = subprocess.Popen(
             cmd,
@@ -586,6 +590,7 @@ def run_executable(config: ProjectConfig, toolchains: dict[str, ToolchainConfig]
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE,  # Pipe stdin to prevent hanging
             text=True,
             encoding='utf-8',
             errors='replace'

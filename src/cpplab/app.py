@@ -303,6 +303,9 @@ class MainWindow(QMainWindow):
         self.problemsTableWidget.setColumnWidth(2, 50)   # Column column
         self.problemsTableWidget.setColumnWidth(3, 400)  # Message column
         
+        # Make table read-only (users can still select and copy text)
+        self.problemsTableWidget.setEditTriggers(self.problemsTableWidget.EditTrigger.NoEditTriggers)
+        
         # Add build status label to status bar
         self.statusBuildLabel = QLabel("Ready")
         self.statusbar.addPermanentWidget(self.statusBuildLabel)
@@ -580,7 +583,7 @@ class MainWindow(QMainWindow):
             template_content = """#include <iostream>
 
 int main() {
-    std::cout << "Hello, World!" << std::endl;
+    std::cout << "Hello there! Shri this side :D" << std::endl;
     return 0;
 }
 """
@@ -589,7 +592,7 @@ int main() {
             template_content = """#include <stdio.h>
 
 int main() {
-    printf("Hello, World!\\n");
+    printf("Hello there! Shri this side :D\\n");
     return 0;
 }
 """
@@ -599,7 +602,7 @@ int main() {
             template_content = """#include <iostream>
 
 int main() {
-    std::cout << "Hello, World!" << std::endl;
+    std::cout << "Hello there! Shri this side :D" << std::endl;
     return 0;
 }
 """
@@ -748,7 +751,8 @@ int main() {
         try:
             editor = CodeEditor()
             editor.load_file(abs_path)
-            editor.textChanged.connect(lambda: self._on_editor_modified(editor))
+            # Connect to modificationChanged signal instead of textChanged
+            editor.modificationChanged.connect(lambda modified: self._on_editor_modified(editor))
             
             # Apply indentation settings
             editor.update_indentation_settings(
@@ -786,13 +790,8 @@ int main() {
             return
         
         try:
+            # save_file() will emit modificationChanged(False) which triggers _on_editor_modified
             editor.save_file()
-            
-            # Update tab title to remove dirty marker
-            idx = self.editorTabWidget.indexOf(editor)
-            if idx >= 0:
-                tab_name = Path(editor.file_path).name
-                self.editorTabWidget.setTabText(idx, tab_name)
                 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save file:\n{str(e)}")
@@ -831,10 +830,22 @@ int main() {
             return
         
         idx = self.editorTabWidget.indexOf(editor)
-        if idx >= 0 and editor.is_modified:
+        if idx >= 0:
             tab_name = Path(editor.file_path).name
-            if not self.editorTabWidget.tabText(idx).endswith("*"):
-                self.editorTabWidget.setTabText(idx, f"{tab_name} *")
+            current_text = self.editorTabWidget.tabText(idx)
+            
+            print(f"[App] _on_editor_modified: editor.is_modified={editor.is_modified}, current_text='{current_text}'")
+            
+            if editor.is_modified:
+                # Add asterisk if not present
+                if not current_text.endswith("*"):
+                    print(f"[App] Adding asterisk to tab '{tab_name}'")
+                    self.editorTabWidget.setTabText(idx, f"{tab_name} *")
+            else:
+                # Remove asterisk if present
+                if current_text.endswith("*"):
+                    print(f"[App] Removing asterisk from tab '{tab_name}'")
+                    self.editorTabWidget.setTabText(idx, tab_name)
     
     def _on_tab_changed(self, index: int):
         """Update UI state when active tab changes."""
@@ -1269,7 +1280,7 @@ int main() {
             )
     
     def run_current(self):
-        """Run current project or standalone file executable."""
+        """Run current project or standalone file executable in external terminal."""
         if self.current_project:
             exe_path = get_executable_path(self.current_project)
             if not exe_path.exists():
@@ -1283,10 +1294,15 @@ int main() {
                     self.build_current()
                 return
             
-            # Run executable (non-blocking)
+            # Always launch in external terminal (all project types)
             self.statusBuildLabel.setText("Running...")
-            run_executable(self.current_project, self.toolchains)
-            self.statusBuildLabel.setText("Program started")
+            try:
+                # Use 'start' command on Windows to open in new terminal
+                subprocess.Popen(f'start cmd /k "{exe_path}"', shell=True)
+                self.statusBuildLabel.setText("Program started in terminal")
+            except Exception as e:
+                QMessageBox.warning(self, "Launch Error", f"Failed to launch terminal: {e}")
+                self.statusBuildLabel.setText("Failed to launch")
         else:
             # Standalone file
             editor = self.current_editor()
@@ -1308,28 +1324,15 @@ int main() {
                     self.build_current()
                 return
             
-            # Run executable in external terminal for console programs
-            # Graphics/OpenMP programs run detached without terminal
+            # Always launch in external terminal (all file types: console, graphics, openmp)
             self.statusBuildLabel.setText("Running...")
-            
-            if self.standalone_project_type == "console":
-                # Launch in external terminal for console programs
-                try:
-                    # Use 'start' command on Windows to open in new terminal
-                    subprocess.Popen(f'start cmd /k "{exe_path}"', shell=True)
-                    self.statusBuildLabel.setText("Program started in terminal")
-                except Exception as e:
-                    QMessageBox.warning(self, "Launch Error", f"Failed to launch terminal: {e}")
-                    self.statusBuildLabel.setText("Failed to launch")
-            else:
-                # For graphics/openmp, run detached (no terminal, no output capture)
-                run_single_file(
-                    source_path, self.toolchains,
-                    self.standalone_standard if self.standalone_standard else None,
-                    self.standalone_toolchain_preference,
-                    self.standalone_project_type
-                )
-                self.statusBuildLabel.setText("Program started")
+            try:
+                # Use 'start' command on Windows to open in new terminal
+                subprocess.Popen(f'start cmd /k "{exe_path}"', shell=True)
+                self.statusBuildLabel.setText("Program started in terminal")
+            except Exception as e:
+                QMessageBox.warning(self, "Launch Error", f"Failed to launch terminal: {e}")
+                self.statusBuildLabel.setText("Failed to launch")
     
     def on_build_project(self):
         """Build current project or standalone file."""

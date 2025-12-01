@@ -9,6 +9,8 @@ Look, I know you would rather go with VS Code, but I ain't got that in my colleg
 
 ## Downloads
 
+### Windows Release (Standalone .exe)
+
 **Latest Release: v1.0.0**
 
 📦 [Download CppLabEngine-v1.0.0-win64.zip](https://github.com/techy4shri/CppLabEngine/releases/tag/v1.0.0)
@@ -18,7 +20,27 @@ Look, I know you would rather go with VS Code, but I ain't got that in my colleg
 2. Run `CppLabEngine.exe` - no installation needed
 3. Start coding with C/C++ immediately
 
-**Requirements:** Windows 10/11 (64-bit) (again, this app was built in windows 11 so yeah, I got no idea if this will work with older versions but if it does, good for you)
+**Requirements:** Windows 10/11 (64-bit) - native Windows only, Wine is NOT supported
+
+### Linux/macOS Users
+
+The Windows .exe build **does not work under Wine** due to Qt6 dependencies. Instead, run from source:
+
+```bash
+# Install dependencies
+sudo apt install python3 python3-pip python3-venv mingw-w64  # Debian/Ubuntu
+# or: brew install python3 mingw-w64  # macOS
+
+# Clone and run
+git clone https://github.com/techy4shri/CppLabEngine.git
+cd CppLabEngine
+python3 -m venv .venv
+source .venv/bin/activate  # or: .venv\Scripts\activate on Windows
+pip install -r requirements.txt
+python run_cpplab.py
+```
+
+**Note:** MinGW cross-compilation toolchain is required on Linux/macOS to compile Windows executables.
 
 ## Features
 
@@ -182,6 +204,8 @@ Each project contains a `.cpplab.json` file:
 This is an early release focused on core functionality:
 
 - **Windows Only**: Currently targets Windows 10/11 (64-bit)
+  - **Wine is NOT supported**: The PyInstaller .exe build requires native Windows for Qt6 dependencies
+  - Linux/macOS users should run from source (see Downloads section)
 - **No Debugger**: Integrated debugging not yet implemented (use GDB externally)
 - **Build Performance**: Builds may be slow on some systems
   - Recommendation: Add CppLabEngine folder to antivirus exclusions for faster builds
@@ -216,6 +240,15 @@ The codebase follows these conventions:
 - PyQt6
 - PyInstaller (for building)
 - MinGW toolchains (not in repository)
+
+## Troubleshooting
+
+Having issues? Check the [Troubleshooting Guide](TROUBLESHOOTING.md) for solutions to common problems:
+- Wine/Linux compatibility issues
+- "Unknown Publisher" warnings
+- Slow builds and antivirus interference
+- Input/graphics/OpenMP problems
+- And more...
 
 ## License
 
