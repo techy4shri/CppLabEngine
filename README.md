@@ -13,7 +13,7 @@ Look, I know you would rather go with VS Code, but I ain't got that in my colleg
 
 **Latest Release: v1.0.0**
 
-📦 [Download CppLabEngine-v1.0.0-win64.zip](https://github.com/techy4shri/CppLabEngine/releases/tag/v1.0.0)
+📦 [Download latest release here!](https://github.com/techy4shri/CppLabEngine/releases)
 
 **Quick Start:**
 1. Download and extract the zip file anywhere on your computer
